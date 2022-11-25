@@ -9,11 +9,12 @@ class TrainingEvaluationDatasets:
     Reading dataset from CoNLL dataset, extracted by https://github.com/dalab/deep-ed/
     """
 
-    def __init__(self, base_url, wiki_version):
+    def __init__(self, base_url, wiki_version, use_corefs=True):
         self.person_names = self.__load_person_names(
             os.path.join(base_url, "generic/p_e_m_data/persons.txt")
         )
         self.base_url = os.path.join(base_url, wiki_version)
+        self.use_corefs = use_corefs
 
     def load(self):
         """
@@ -44,7 +45,8 @@ class TrainingEvaluationDatasets:
                 if "Jiří_Třanovský Jiří_Třanovský" in datasets[ds]:
                     del datasets[ds]["Jiří_Třanovský Jiří_Třanovský"]
 
-            self.with_coref(datasets[ds])
+            if self.use_corefs:
+                self.with_coref(datasets[ds])
 
         return datasets
 
@@ -109,7 +111,7 @@ class TrainingEvaluationDatasets:
 
         :return: dataset
         """
-
+        print("with_coref() is called.")
         for data_name, content in dataset.items():
             for cur_m in content:
                 coref = self.__find_coref(cur_m, content)
