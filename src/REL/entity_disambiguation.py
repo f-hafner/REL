@@ -205,7 +205,7 @@ class EntityDisambiguation:
 
         :return: -
         """
-
+        print("train() is called")
         train_dataset = self.get_data_items(org_train_dataset, "train", predict=False)
         dev_datasets = []
         for dname, data in org_dev_datasets.items():

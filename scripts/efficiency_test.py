@@ -5,13 +5,13 @@ from REL.training_datasets import TrainingEvaluationDatasets
 
 np.random.seed(seed=42)
 
-base_url = "/Users/vanhulsm/Desktop/projects/data/"
-wiki_version = "wiki_2014"
+base_url = "/home/flavio/projects/rel20/data"
+wiki_version = "wiki_2019"
 datasets = TrainingEvaluationDatasets(base_url, wiki_version).load()["aida_testB"]
 
 # random_docs = np.random.choice(list(datasets.keys()), 50)
 
-server = True
+server = False
 docs = {}
 for i, doc in enumerate(datasets):
     sentences = []
@@ -56,9 +56,10 @@ if not server:
     from REL.entity_disambiguation import EntityDisambiguation
     from REL.mention_detection import MentionDetection
 
-    base_url = "C:/Users/mickv/desktop/data_back/"
+    base_url = "/home/flavio/projects/rel20/data"
 
-    flair.device = torch.device("cuda:0")
+    # flair.device = torch.device("cuda:0")
+    flair.device = torch.device("cpu")
 
     mention_detection = MentionDetection(base_url, wiki_version)
 
