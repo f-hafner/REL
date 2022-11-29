@@ -323,6 +323,11 @@ class EntityDisambiguation:
                     end="\r",
                 )
 
+                print(f"Epoch {e}, dataset {dc}, one of current parameters:")
+                for name, param in self.model.named_parameters():
+                    if param.requires_grad and name == "score_combine.0.bias": #otherwise the output is not readable
+                        print(f"{name}: {param.data}")
+
             print("epoch", e, "total loss", total_loss, total_loss / len(train_dataset))
 
             if (e + 1) % eval_after_n_epochs == 0:

@@ -44,6 +44,7 @@ class GenericLookup(DB):
         return g
 
     def wiki(self, mention, table_name, column_name="p_e_m"):
+        # print("lookup_wik() is called.")
         g = self.lookup_wik(mention, table_name, column_name)
         return g
 
