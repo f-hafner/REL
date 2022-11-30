@@ -2,22 +2,44 @@ import numpy as np
 import requests
 import argparse
 import pickle
+import time 
+from functools import wraps
+
 
 from REL.training_datasets import TrainingEvaluationDatasets
 
 np.random.seed(seed=42)
 
+def time_runs(func):
+    "Time the execution of multiple calls to `func`."
+    @wraps(func)
+    def t(*args, **kwargs):
+        i = 0 
+        n_runs = kwargs["n_runs"]
+        timing_md = []
+        while i < n_runs:
+            print(f"run {i} out of {n_runs}")
+            start = time.time()
+            func(*args)
+            time_run = time.time() - start
+            timing_md.append(time_run)
+            i += 1
+        return timing_md
+    return t
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--use_corefs", action="store_true", help="use function with_coref()?", default=False)
+parser.add_argument("--n_runs", type=int, help="iteration number for timing MD and ED steps.", default=None)
 args = parser.parse_args()
 print(f"args.use_corefs is {args.use_corefs}")
-
 
 
 base_url = "/home/flavio/projects/rel20/data"
 wiki_version = "wiki_2019"
 datasets = TrainingEvaluationDatasets(base_url, wiki_version, args.use_corefs).load()["aida_testB"] 
     # datasets are loaded here, then processed and stored in docs, which is then used to check the efficiency
+
 
 # random_docs = np.random.choice(list(datasets.keys()), 50)
 
@@ -57,7 +79,7 @@ for i, doc in enumerate(datasets):
 # --------------------- Now total --------------------------------
 # ------------- RUN SEPARATELY TO BALANCE LOAD--------------------
 if not server:
-    from time import time
+    #from time import time
 
     import flair
     import torch
@@ -75,11 +97,17 @@ if not server:
     # Alternatively use Flair NER tagger.
     tagger_ner = SequenceTagger.load("ner-fast")
 
-    start = time()
-    mentions_dataset, n_mentions = mention_detection.find_mentions(docs, tagger_ner) # TODO: here corefs have an impact! check how.
-        # but what we do in the mention detection here has no impact on what we below in ED. 
-        # so would we expect an effect here, or only below?
-    print("MD took: {}".format(time() - start))
+    # run it once more for next step
+    mentions_dataset, n_mentions = mention_detection.find_mentions(docs, tagger_ner)
+
+    if args.n_runs is not None:
+        print("Timing MD...")
+        @time_runs
+        def time_find_mentions(docs, tagger_ner):
+            mentions_dataset, n_mentions = mention_detection.find_mentions(docs, tagger_ner)
+
+        timing_md = time_find_mentions(docs, tagger_ner, n_runs=args.n_runs)
+
 
     # 3. Load model.
     config = {
@@ -93,19 +121,36 @@ if not server:
         # note that the data are loaded elsewhere! so not sure this is the right place to add the option? 
 
     # 4. Entity disambiguation.
-    start = time()
     predictions, timing = model.predict(mentions_dataset)
-    print("ED took: {}".format(time() - start))
 
-    output = {
-        "predictions": predictions,
-        "timing": timing
-    }
-    fn = f"{base_url}/efficiency_test/output"
+    if args.n_runs is not None:
+        print("Timing ED...")
+        @time_runs
+        def time_predict(mentions):
+            predictions, timing = model.predict(mentions)
+
+        timing_ed = time_predict(mentions_dataset, n_runs=args.n_runs)
+
+    # 5. Store output
+    if args.n_runs is not None:
+        results = {
+            "MD": timing_md,
+            "ED": timing_ed,
+        }
+        fn = "timing"
+    else:
+        results = {
+            "predictions": predictions,
+            "timing": timing
+        }
+        fn = "output"
+
+    
+    fn = f"{base_url}/efficiency_test/{fn}"
     if not args.use_corefs:
         fn = f"{fn}_nocoref"
 
     with open(f"{fn}.pickle", "wb") as f:
-        pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     
