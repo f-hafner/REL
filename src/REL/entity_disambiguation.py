@@ -198,6 +198,14 @@ class EntityDisambiguation:
 
                 self.__batch_embs[name] = []
                 self.__batch_embs[name].append(torch.tensor(e))
+            
+            embedding_length = len(self._EntityDisambiguation__batch_embs[name][0])
+            print(f"embedding of {name} has length {embedding_length}")
+        
+        # entity_embeddings = self._EntityDisambiguation__batch_embs["entity"]
+        # word_embeddings = self._EntityDisambiguation__batch_embs["word"]
+        # snd_embeddings = self._EntityDisambiguation__batch_embs["snd"]
+        # breakpoint()
 
     def train(self, org_train_dataset, org_dev_datasets):
         """
@@ -735,6 +743,11 @@ class EntityDisambiguation:
                     else [self.embeddings["word_voca"].unk_id]
                     for l, m, r in zip(lctx_ids, ment_ids, rctx_ids)
                 ]
+                # breakpoint() # content and token ids have the same length 
+                    # content contains all mentions. for each mention, token_ids contains the ids of
+                    # the mention and its left/right ids
+                    # So, are these tokens taken from flair (ie chunks of text)? how are the fed to the model? 
+                    # it seems below the numbers themselves are passed to the model
 
                 entity_ids = [m["cands"] for m in content]
                 entity_ids = Variable(torch.LongTensor(entity_ids).to(self.device))
@@ -746,7 +759,7 @@ class EntityDisambiguation:
                 token_offsets = Variable(
                     torch.LongTensor(token_offsets).to(self.device)
                 )
-                token_ids = Variable(torch.LongTensor(token_ids).to(self.device))
+                token_ids = Variable(torch.LongTensor(token_ids).to(self.device)) 
 
                 entity_names = [m["named_cands"] for m in content]  # named_cands
 
@@ -784,7 +797,7 @@ class EntityDisambiguation:
                         selected.add(idx)
                     idx += 1
 
-                selected = sorted(list(selected))
+                selected = sorted(list(selected)) # this is a list of integers. they are the indices of the selected candidate entities.
                 for idx in selected:
                     sm["cands"].append(m["cands"][idx])
                     sm["named_cands"].append(m["named_cands"][idx])
@@ -793,6 +806,7 @@ class EntityDisambiguation:
                     if idx == m["true_pos"]:
                         sm["true_pos"] = len(sm["cands"]) - 1
 
+                #breakpoint()
                 if not predict:
                     if sm["true_pos"] == -1:
                         continue

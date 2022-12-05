@@ -20,7 +20,6 @@ class PreRank(torch.nn.Module):
 
         :return: entity scores.
         """
-
         sent_vecs = embeddings["word_embeddings_bag"](
             token_ids, token_offsets
         )  # (batch_size, emb_size=300)
@@ -37,7 +36,7 @@ class PreRank(torch.nn.Module):
         scores = torch.bmm(entity_vecs, sent_vecs.view(batchsize, dims, 1))
         scores = scores.view(batchsize, n_entities)
 
-        log_probs = F.log_softmax(scores, dim=1)
+        log_probs = F.log_softmax(scores, dim=1) # why do we do this? is this just a transformation?
         return log_probs
 
 
