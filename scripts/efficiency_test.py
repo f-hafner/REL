@@ -97,6 +97,39 @@ if not server:
     predictions, timing = model.predict(mentions_dataset)
     print("ED took: {}".format(time() - start))
 
+
+    # scale the number of mentions
+    # max_scaling_factor = 10
+    # steps = 5
+
+    mentions_dataset_scaled = {}
+
+    for k, data in mentions_dataset.items():
+        mentions_dataset_scaled[k] = data # add the baseline data as in mentions_dataset
+        for f in [5, 10, 50, 100]:
+            d = data * f 
+            key = f"{k}_{f}"
+            mentions_dataset_scaled[key] = d
+
+    timing_by_dataset = {}
+    for name, mentions in mentions_dataset_scaled.items():
+        print(f"predicting for dataset {name}")
+        tempdict = {name: mentions} # format so that model.predict() works 
+        start = time()
+        predictions, timing = model.predict(tempdict)
+        t = time() - start
+        timing_by_dataset[name] = {
+            "n_mentions": len(mentions),
+            "time": t
+        }
+
+    import cProfile 
+    fn = f"{base_url}/efficiency_test/profile_predict"
+    if not args.use_corefs:
+        fn = f"{fn}_nocoref"
+    # cProfile.run("model.predict(mentions_dataset_scaled)", sort=1, filename=fn)
+    # breakpoint()
+
     output = {
         "predictions": predictions,
         "timing": timing
@@ -107,5 +140,13 @@ if not server:
 
     with open(f"{fn}.pickle", "wb") as f:
         pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)
+    
+    # save timing by dataet
+    fn_time_dataset = f"{base_url}/efficiency_test/time_dataset"
+    if not args.use_corefs:
+        fn_time_dataset = f"{fn_time_dataset}_nocoref"
+    
+    with open(f"{fn_time_dataset}.pickle", "wb") as f:
+        pickle.dump(timing_by_dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     
