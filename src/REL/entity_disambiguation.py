@@ -32,7 +32,7 @@ class EntityDisambiguation:
     Parent Entity Disambiguation class that directs the various subclasses used
     for the ED step.
     """
-    def __init__(self, base_url, wiki_version, user_config, reset_embeddings=False, use_corefs=True):
+    def __init__(self, base_url, wiki_version, user_config, reset_embeddings=False, no_corefs=False):
         self.base_url = base_url
         self.wiki_version = wiki_version
         self.embeddings = {}
@@ -53,8 +53,8 @@ class EntityDisambiguation:
         ), "Glove embeddings in wrong folder..? Test embedding not found.."
 
         self.__load_embeddings()
-        self.use_corefs = use_corefs
-        self.coref = TrainingEvaluationDatasets(base_url, wiki_version, use_corefs)
+        self.no_corefs = no_corefs
+        self.coref = TrainingEvaluationDatasets(base_url, wiki_version, no_corefs)
         self.prerank_model = PreRank(self.config).to(self.device)
 
         self.__max_conf = None
@@ -471,7 +471,7 @@ class EntityDisambiguation:
         :return: predictions and time taken for the ED step.
         """
 
-        if self.use_corefs:
+        if not self.no_corefs:
             self.coref.with_coref(data)
             
         data = self.get_data_items(data, "raw", predict=True)
