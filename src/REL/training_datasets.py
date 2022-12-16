@@ -125,3 +125,6 @@ class TrainingEvaluationDatasets:
                     cur_m["candidates"] = sorted(
                         list(cur_cands.items()), key=lambda x: x[1]
                     )[::-1]
+                    cur_m["is_coref"] = 1
+                else:
+                    cur_m["is_coref"] = 0

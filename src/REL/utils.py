@@ -90,6 +90,7 @@ def process_results(
             idx = ment["sent_idx"]
             start_pos = ment["pos"]
             mention_length = int(ment["end_pos"] - ment["pos"])
+            is_coref = pred['is_coref']
 
             if pred["prediction"] != "NIL":
                 temp = (
@@ -100,6 +101,7 @@ def process_results(
                     pred["conf_ed"],
                     ment["conf_md"] if "conf_md" in ment else 0.0,
                     ment["tag"] if "tag" in ment else "NULL",
+                    is_coref,
                 )
                 res_doc.append(temp)
         res[doc] = res_doc

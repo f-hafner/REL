@@ -473,7 +473,7 @@ class EntityDisambiguation:
 
         if not self.no_corefs:
             self.coref.with_coref(data)
-            
+
         data = self.get_data_items(data, "raw", predict=True)
         predictions, timing = self.__predict(data, include_timing=True, eval_raw=True)
 
@@ -667,7 +667,12 @@ class EntityDisambiguation:
                 ]
                 doc_names = [m["doc_name"] for m in batch]
 
-                for dname, entity in zip(doc_names, pred_entities):
+                if not self.no_corefs:
+                    coref_indicators = [m['raw']['is_coref'] for m in batch]
+                else:
+                    coref_indicators = [None for m in batch]
+
+                for dname, entity, is_coref in zip(doc_names, pred_entities, coref_indicators):
                     if entity[0] != "NIL":
                         predictions[dname].append(
                             {
@@ -676,6 +681,7 @@ class EntityDisambiguation:
                                 "candidates": entity[2],
                                 "conf_ed": entity[4],
                                 "scores": list([str(x) for x in entity[3]]),
+                                "is_coref": is_coref
                             }
                         )
 
@@ -686,6 +692,7 @@ class EntityDisambiguation:
                                 "prediction": entity[0],
                                 "candidates": entity[2],
                                 "scores": [],
+                                "is_coref": is_coref
                             }
                         )
 
