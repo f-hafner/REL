@@ -163,6 +163,7 @@ if not server:
     print("ED took: {}".format(time() - start))
 
     output = {
+        "mentions": mentions_dataset,
         "predictions": predictions,
         "timing": timing
     }
