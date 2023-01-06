@@ -9,11 +9,18 @@ from REL.training_datasets import TrainingEvaluationDatasets
 np.random.seed(seed=42)
 
 parser = argparse.ArgumentParser()
-parser.add_argument( 
-    "--no_corefs",
-    action="store_true",
-    help="use function with_coref()?", 
-    default=False)
+# parser.add_argument( 
+#     "--no_corefs",
+#     action="store_true",
+#     help="use function with_coref()?", 
+#     default=False)
+parser.add_argument(
+    '--search_corefs',
+    type=str,
+    choices=['all', 'lsh', 'off'],
+    default='all',
+    help="Setting for search_corefs in Entity Disambiguation."
+)
 
 parser.add_argument(
     "--profile",
@@ -70,7 +77,7 @@ def profile_to_df(call):
 # adjust folder structure on computer and in script 
 
 args = parser.parse_args()
-print(f"args.no_corefs is {args.no_corefs}")
+print(f"args.search_corefs is {args.search_corefs}")
 
 if args.profile:
     import cProfile 
@@ -81,7 +88,7 @@ if args.profile:
 
 base_url = "/home/flavio/projects/rel20/data"
 wiki_version = "wiki_2019"
-datasets = TrainingEvaluationDatasets(base_url, wiki_version, args.no_corefs).load()[args.name_dataset] 
+datasets = TrainingEvaluationDatasets(base_url, wiki_version, args.search_corefs).load()[args.name_dataset] 
 save_data_to = f"{base_url}/efficiency_test/" # save all recorded in this directory 
 
 # random_docs = np.random.choice(list(datasets.keys()), 50)
@@ -151,7 +158,7 @@ if not server:
         "mode": "eval",
         "model_path": "{}/{}/generated/model".format(base_url, wiki_version),
     }
-    model = EntityDisambiguation(base_url, wiki_version, config, no_corefs=args.no_corefs) # TODO: change to no_corefs to be consistent!
+    model = EntityDisambiguation(base_url, wiki_version, config, search_corefs=args.search_corefs) 
         # model.coref is a training data set
         # model.coref has method with_coref
         # compare the training data sets when using corefs and when not
@@ -168,9 +175,9 @@ if not server:
         "timing": timing
     }
     
-    filename = f"{save_data_to}predictions/{args.name_dataset}_{args.n_docs}"
-    if args.no_corefs:
-        filename = f"{filename}_nocoref"
+    filename = f"{save_data_to}predictions/{args.name_dataset}_{args.n_docs}_{args.search_corefs}"
+    # if args.no_corefs:
+    #     filename = f"{filename}_nocoref"
 
     with open(f"{filename}.pickle", "wb") as f:
         pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)        
@@ -178,9 +185,9 @@ if not server:
     # ## 4.b Profile disambiguation
     if args.profile:
         print("Profiling disambiguation")
-        filename = f"{save_data_to}profile/{args.name_dataset}_{args.n_docs}"
-        if args.no_corefs:
-            filename = f"{filename}_nocoref"
+        filename = f"{save_data_to}profile/{args.name_dataset}_{args.n_docs}_{args.search_corefs}"
+        # if args.no_corefs:
+        #     filename = f"{filename}_nocoref"
 
         df_stats = profile_to_df(call="model.predict(mentions_dataset)")
         # cProfile.run("model.predict(mentions_dataset)", filename="temp.txt")
@@ -237,9 +244,9 @@ if not server:
 
         
         # save timing by dataet
-        filename = f"{save_data_to}n_mentions_time/{args.name_dataset}"
-        if args.no_corefs:
-            filename = f"{filename}_nocoref"
+        filename = f"{save_data_to}n_mentions_time/{args.name_dataset}_{args.search_corefs}"
+        # if args.no_corefs:
+        #     filename = f"{filename}_nocoref"
         
         with open(f"{filename}.pickle", "wb") as f:
             pickle.dump(timing_by_dataset, f, protocol=pickle.HIGHEST_PROTOCOL)

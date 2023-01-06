@@ -32,7 +32,12 @@ class EntityDisambiguation:
     Parent Entity Disambiguation class that directs the various subclasses used
     for the ED step.
     """
-    def __init__(self, base_url, wiki_version, user_config, reset_embeddings=False, no_corefs=False):
+    def __init__(self, base_url, wiki_version, user_config, reset_embeddings=False, search_corefs="all"):
+        """
+        Argument search_corefs: One of 'all' (default), 'lsh', 'off'. 
+            If 'off', no coreference search is done.
+            Otherwise the arguments are passed to the argument `search_corefs_in` in `with_coref`.
+        """
         self.base_url = base_url
         self.wiki_version = wiki_version
         self.embeddings = {}
@@ -53,8 +58,9 @@ class EntityDisambiguation:
         ), "Glove embeddings in wrong folder..? Test embedding not found.."
 
         self.__load_embeddings()
-        self.no_corefs = no_corefs
-        self.coref = TrainingEvaluationDatasets(base_url, wiki_version, no_corefs)
+        assert search_corefs in ['all', 'lsh', 'off']
+        self.search_corefs = search_corefs
+        self.coref = TrainingEvaluationDatasets(base_url, wiki_version, search_corefs)
         self.prerank_model = PreRank(self.config).to(self.device)
 
         self.__max_conf = None
@@ -471,8 +477,8 @@ class EntityDisambiguation:
         :return: predictions and time taken for the ED step.
         """
 
-        if not self.no_corefs:
-            self.coref.with_coref(data)
+        if self.search_corefs != "off":
+            self.coref.with_coref(data, search_corefs_in=self.search_corefs)
 
         data = self.get_data_items(data, "raw", predict=True)
         predictions, timing = self.__predict(data, include_timing=True, eval_raw=True)
@@ -667,7 +673,7 @@ class EntityDisambiguation:
                 ]
                 doc_names = [m["doc_name"] for m in batch]
 
-                if not self.no_corefs:
+                if self.search_corefs != 'off':
                     coref_indicators = [m['raw']['is_coref'] for m in batch]
                 else:
                     coref_indicators = [None for m in batch]
