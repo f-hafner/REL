@@ -12,16 +12,18 @@ echo $datasets
 for size in ${docsizes[@]}; do
     for ds in ${datasets[@]}; do
         echo $ds, echo $size
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds"
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --no_corefs
+        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "all"
+        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "lsh"
+        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "off"
     done 
 done 
 
 
 # for ds in ${datasets[@]}; do
 #     echo $ds
-#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile 
-#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --no_corefs
+#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "all"
+#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "lsh"
+#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "off"
 # done 
 
 
