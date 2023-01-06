@@ -1,6 +1,7 @@
 import os
 import pickle
-
+import pdb 
+from REL.lsh import LSHMinHash
 
 class TrainingEvaluationDatasets:
     """
@@ -105,7 +106,7 @@ class TrainingEvaluationDatasets:
 
         return coref
 
-    def with_coref(self, dataset):
+    def with_coref_old(self, dataset): # TODO: need to update the calls to with_coref
         """
         Parent function that checks if there are coreferences in the given dataset.
 
@@ -128,3 +129,46 @@ class TrainingEvaluationDatasets:
                     cur_m["is_coref"] = 1
                 else:
                     cur_m["is_coref"] = 0
+
+    def with_coref(self, dataset): # TODO: need to update the calls to with_coref
+        """
+        Check if there are coreferences in the given dataset. Use LSH for dimensionality reduction.
+
+        :return: dataset
+        """
+        print("with_coref_lsh() is called.")
+        for data_name, content in dataset.items():
+            # pdb.set_trace()
+            # handle problem with only 1 input mention -- fall back to previous approach
+            # print(f"len content: {len(content)}")
+            # print(f"data name: {data_name}")
+            # if data_name == '937 OFFICIAL)':
+            #     pdb.set_trace()
+            if len(content) == 0:
+                pass 
+            else:
+                input_mentions = [m["mention"] for m in content]
+                lsh_corefs = LSHMinHash(mentions=input_mentions, shingle_size=4, signature_size=50, band_length=2)
+                lsh_corefs.cluster()
+                assert len(content) == len(lsh_corefs.candidates)
+                # lsh_corefs.candidates are the input for below. indices refer to index in input_mentions
+                # call lsh here on all mentions 
+                for cur_m, idx_candidates in zip(content, lsh_corefs.candidates):
+                    idx_candidates = list(idx_candidates) # lsh returns the indices of the candidate coreferences
+                    candidates = [content[i] for i in idx_candidates]
+                    coref = self.__find_coref(cur_m, candidates)
+                    # update __find_coref: use indices from lsh call above 
+                    # pdb.set_trace()
+                    if coref is not None and len(coref) > 0:
+                        cur_cands = {}
+                        for m in coref:
+                            for c, p in m["candidates"]:
+                                cur_cands[c] = cur_cands.get(c, 0) + p
+                        for c in cur_cands.keys():
+                            cur_cands[c] /= len(coref)
+                        cur_m["candidates"] = sorted(
+                            list(cur_cands.items()), key=lambda x: x[1]
+                        )[::-1]
+                        cur_m["is_coref"] = 1
+                    else:
+                        cur_m["is_coref"] = 0
