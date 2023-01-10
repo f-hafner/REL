@@ -2,6 +2,7 @@
 from random import shuffle, seed 
 import time 
 import numpy as np 
+import logging 
 seed(3)
 
 def split_mention(m):
@@ -109,10 +110,12 @@ class LSHBase:
         self.vocab = vocab
 
     def encode_binary(self, to_numpy=False):
+        logging.debug(f"creating lists with binary vectors. Vocabulary size is {len(self.vocab)}")
         vectors = [[1 if word in cur_shingles else 0 for word in self.vocab] for cur_shingles in self.shingles]
         if not to_numpy:
             self.vectors = vectors 
         else:
+            logging.debug("putting to numpy")
             self.vectors = np.stack(vectors)
 
 
@@ -128,6 +131,7 @@ class LSHMinHash(LSHBase):
     
     def make_signature(self):
         "make array of dense vectors with MinHashing. each row is one mention"
+        print(f"Making signature. vectors shape is {self.vectors.shape}")
         templist = []
         rng = np.random.default_rng(seed=3)
         i = 0
@@ -148,8 +152,9 @@ class LSHMinHash(LSHBase):
         n_mentions = self.vectors.shape[0]
         self.candidates = [set(range(n_mentions)) for _ in range(n_mentions)]
 
-    def get_candidates(self):
+    def get_candidates(self): ## TODO: use itertools
         "extract similar candidates for each mention by comparing subsets of the signature"
+        print("getting candidates...")
         n_bands = int(self.signature_size / self.band_length)
         bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
         candidates = [set() for _ in range(self.vectors.shape[0])]
@@ -172,15 +177,20 @@ class LSHMinHash(LSHBase):
     def cluster(self, numpy_signature=False):
         "find similar records for each mention"
         start = time.time()
+        logging.debug("building vocabulary")
         self._build_vocab()
+        logging.debug("encoding to binary")
         self.encode_binary(to_numpy=True)
+        logging.debug("making signature")
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
+            print('self.vectors.shape[1] is 0.')
             self.all_candidates_to_all()
         else:
             if numpy_signature:
                 self.make_signature_np()
             else:
                 self.make_signature()
+            logging.debug("getting candidate groups")
             self.get_candidates()
         self.time = time.time() - start 
 
