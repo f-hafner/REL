@@ -19,15 +19,15 @@ for size in ${docsizes[@]}; do
 done 
 
 
-# for ds in ${datasets[@]}; do
-#     echo $ds
-#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "all"
-#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "lsh"
-#     python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "off"
-# done 
+for ds in ${datasets[@]}; do
+    echo $ds
+    python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "all"
+    python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "lsh"
+    python scripts/efficiency_test.py --name_dataset "$ds" --scale_mentions --profile --search_corefs "off"
+done 
 
 
-
+echo "Done."
 
 
 
