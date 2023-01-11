@@ -3,6 +3,9 @@ from random import shuffle, seed
 import time 
 import numpy as np 
 import logging 
+import pdb 
+import sys 
+from scipy import sparse
 seed(3)
 
 def split_mention(m):
@@ -78,7 +81,7 @@ def minhash_signature_np(x, n_reps):
     """
     # get indices 
     indices = np.arange(x.shape[1])
-    rng = np.random.default_rng(12345)
+    rng = np.random.default_rng(12345) # TODO: this should be defined at class instantiation
 
     # expand by n_reps 
     indices_mult = np.tile(indices, (n_reps, 1)) # reorder the columns n_reps times 
@@ -109,39 +112,92 @@ class LSHBase:
         vocab = list(set([shingle for sublist in self.shingles for shingle in sublist]))
         self.vocab = vocab
 
-    def encode_binary(self, to_numpy=False):
-        logging.debug(f"creating lists with binary vectors. Vocabulary size is {len(self.vocab)}")
-        vectors = [[1 if word in cur_shingles else 0 for word in self.vocab] for cur_shingles in self.shingles]
-        if not to_numpy:
-            self.vectors = vectors 
+    # def encode_binary(self, to_numpy=False):
+    #     logging.debug(f"creating lists with binary vectors. Vocabulary size is {len(self.vocab)}")
+    #     # pdb.set_trace()
+    #     vectors = [[1 if word in cur_shingles else 0 for word in self.vocab] for cur_shingles in self.shingles]
+    #     logging.debug(f"size of vectors: {sys.getsizeof(vectors)}")
+    #     if not to_numpy:
+    #         self.vectors = vectors 
+    #     else:
+    #         logging.debug("putting to numpy")
+    #         self.vectors = np.stack(vectors)
+    def encode_binary(self, dest="sparse"):
+        """Create binary vectors for each mention. 
+        
+        Parameters:
+        ----------
+        dest: how to store the resulting matrix. One of 'list' (base python), 'numpy' (numpy array), or 'sparse' (sparse matrix)
+        """
+        assert dest in ["list", "numpy", "sparse"]
+        if dest == "list":
+            raise NotImplementedError("Not implemented yet.")
         else:
-            logging.debug("putting to numpy")
-            self.vectors = np.stack(vectors)
+            # indices of ones 
+            logging.debug("making indices from vocab")# at least this gives me now the MemoryError.
+            one_indices = [[i for i in range(len(self.vocab)) if self.vocab[i] in shingle] for shingle in self.shingles]
+            if dest == "numpy":
+                logging.debug("making id_array")
+                id_array = np.eye(len(self.vocab)) # identiy array https://stackoverflow.com/questions/29831489/convert-array-of-indices-to-one-hot-encoded-array-in-numpy
+                logging.debug("making vectors")
+                vectors = [np.sum(id_array[i], axis=0) for i in one_indices]
+                logging.debug("stacking")
+                self.vectors = np.stack(vectors)
+            elif dest == "sparse":
+                logging.debug("making sparse matrix")
+                vectors = []
+                for idx in one_indices:
+                    a = sparse.lil_matrix((1,len(self.vocab)))
+                    a[0, idx] = 1
+                    vectors.append(a)
+                self.vectors = sparse.vstack(vectors)
+
 
 
 class LSHMinHash(LSHBase):
     "LSH with MinHashing and numpy"
 
-    def __init__(self, mentions, shingle_size, signature_size, band_length):
+    def __init__(self, mentions, shingle_size, signature_size, band_length, sparse_binary=True):
+        # sparse_binary: should the sparse 0/1 matrix be stored with scipy sparse? takes more time, but less memory
         super().__init__(mentions, shingle_size)
         if signature_size % band_length != 0:
             raise ValueError("Signature needs to be divisible into equal-sized bands.")
         self.signature_size = signature_size 
         self.band_length = band_length 
+        self.sparse_binary = sparse_binary
     
     def make_signature(self):
         "make array of dense vectors with MinHashing. each row is one mention"
-        print(f"Making signature. vectors shape is {self.vectors.shape}")
+        logging.debug(f"Making signature. vectors shape is {self.vectors.shape}")
+        # pdb.set_trace()
         templist = []
         rng = np.random.default_rng(seed=3)
         i = 0
-        while i < self.signature_size:
-            rng.shuffle(self.vectors, axis=1)
-            sig_i = 1 + self.vectors.argmax(axis=1) # add one for the log10 operations in idx_unique_multidim 
-            templist.append(sig_i)
-            i += 1
+        if isinstance(self.vectors, np.ndarray):
+            logging.debug("using binary numpy arrays")
+            while i < self.signature_size:
+                rng.shuffle(self.vectors, axis=1)
+                sig_i = 1 + self.vectors.argmax(axis=1) # add one for the log10 operations in idx_unique_multidim 
+                templist.append(sig_i)
+                i += 1
+            self.signature = np.stack(templist, axis=1)
+        else: # older versions of scipy have not _coo attribute. TODO: fix this
+        # elif isinstance(self.vectors, sparse._coo.coo_matrix):
+            # not sure how efficient this is. switching a lot between data structures.
+            logging.debug('using binary sparse matrices')
+            indices = np.arange(self.vectors.shape[1])
+            while i < self.signature_size:
+                shuffle(indices)
+                sig = sparse.lil_matrix(self.vectors)
+                sig = sig[:, list(indices)]
+                sig = sparse.csr_matrix(sig)
+                sig_i = 1 + sig.argmax(axis=1)
+                sig_i = np.asarray(sig_i)
+                templist.append(sig_i)
+                i += 1
 
-        self.signature = np.stack(templist, axis=1)
+            self.signature = np.stack(templist, axis=1).squeeze()
+            
 
     def make_signature_np(self):
         signature = minhash_signature_np(self.vectors, self.signature_size)
@@ -154,12 +210,17 @@ class LSHMinHash(LSHBase):
 
     def get_candidates(self): ## TODO: use itertools
         "extract similar candidates for each mention by comparing subsets of the signature"
-        print("getting candidates...")
+        logging.debug("getting candidates...")
         n_bands = int(self.signature_size / self.band_length)
-        bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
-        candidates = [set() for _ in range(self.vectors.shape[0])]
-
-        if len(candidates) > 1:
+        
+        if self.vectors.shape[0] == 1:
+            candidates = [set()]
+            candidates[0].add(0)
+        else:
+            bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
+            candidates = [set() for _ in range(self.vectors.shape[0])]
+                        
+            # if len(candidates) > 1:
             for band in bands:
                 groups = idx_unique_multidim(band)
                 groups = [g for g in groups if g.shape[0] > 1]
@@ -169,8 +230,8 @@ class LSHMinHash(LSHBase):
                         for j in g:
                             if i != j:
                                 candidates[i].add(j)
-        else: # idx_unique_multidim above does not work when there is only one candidate
-            candidates[0].add(0)
+            # else: # idx_unique_multidim above does not work when there is only one candidate
+            #     candidates[0].add(0)
 
         self.candidates = candidates
 
@@ -180,7 +241,10 @@ class LSHMinHash(LSHBase):
         logging.debug("building vocabulary")
         self._build_vocab()
         logging.debug("encoding to binary")
-        self.encode_binary(to_numpy=True)
+        if self.sparse_binary:
+            self.encode_binary(dest="sparse")
+        else:
+            self.encode_binary(dest="numpy")
         logging.debug("making signature")
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
             print('self.vectors.shape[1] is 0.')

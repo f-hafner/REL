@@ -2,7 +2,7 @@ import numpy as np
 import requests
 import argparse
 import pickle
-
+import logging 
 
 from REL.training_datasets import TrainingEvaluationDatasets
 
@@ -47,6 +47,8 @@ parser.add_argument(
     default=50,
     help="Number of documents to be processed."
 )
+logging.basicConfig(level=logging.INFO) # do not print to file 
+
 
 # helper function to profile a call and save the timing in a pd dataframe 
 def profile_to_df(call):
