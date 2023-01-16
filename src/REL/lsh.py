@@ -185,18 +185,29 @@ class LSHMinHash(LSHBase):
         # elif isinstance(self.vectors, sparse._coo.coo_matrix):
             # not sure how efficient this is. switching a lot between data structures.
             logging.debug('using binary sparse matrices')
-            indices = np.arange(self.vectors.shape[1])
-            while i < self.signature_size:
-                shuffle(indices)
-                sig = sparse.lil_matrix(self.vectors)
-                sig = sig[:, list(indices)]
-                sig = sparse.csr_matrix(sig)
-                sig_i = 1 + sig.argmax(axis=1)
-                sig_i = np.asarray(sig_i)
-                templist.append(sig_i)
-                i += 1
+            rng = np.random.default_rng(seed=3)
+            # vectors = mylsh.vectors
+            hyperplanes = rng.choice([-1, 1], (self.signature_size, self.vectors.shape[1]))
+            # TODO: make vectors a csr matrix (?)
+            hyperplanes = sparse.csr_matrix(hyperplanes)
+            products = self.vectors.dot(hyperplanes.transpose())
+            products = products.toarray()
+            sign = 1 + (products > 0) # TODO: can I change the downstream function for this? now it should be much easier to transform the signatures into a single string?
+            self.signature = sign
 
-            self.signature = np.stack(templist, axis=1).squeeze()
+
+            # while i < self.signature_size:
+            #     plane = hyperplanes[i, :].transpose()
+            #     out = self.vectors.dot(plane)
+            #     out = out.toarray()
+                
+            #     sig_i = (out > 0)
+            #     sig_i = sig_i.astype(int)
+            #     sig_i = 1 + sig_i # TODO: can I change the downstream function for this? now it should be much easier to transform the signatures into a single string?
+            #     templist.append(sig_i)
+            #     i += 1
+
+            # self.signature = np.stack(templist, axis=1).squeeze()
             
 
     def make_signature_np(self):
