@@ -221,7 +221,7 @@ if not server:
 
         for k, data in mentions_dataset.items():
             mentions_dataset_scaled[k] = data # add the baseline data as in mentions_dataset
-            for f in [5, 10, 50, 100]:
+            for f in [5, 50, 100, 300]:
                 d = data * f 
                 key = f"{k}_{f}"
                 mentions_dataset_scaled[key] = d

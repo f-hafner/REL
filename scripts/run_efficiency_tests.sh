@@ -9,14 +9,14 @@ docsizes=(50 500)
 echo $datasets
 
 # do profiling and checking predictions in one 
-for size in ${docsizes[@]}; do
-    for ds in ${datasets[@]}; do
-        echo $ds, echo $size
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "all"
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "lsh"
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "off"
-    done 
-done 
+# for size in ${docsizes[@]}; do
+#     for ds in ${datasets[@]}; do
+#         echo $ds, echo $size
+#         python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "all"
+#         python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "lsh"
+#         python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "off"
+#     done 
+# done 
 
 
 for ds in ${datasets[@]}; do
