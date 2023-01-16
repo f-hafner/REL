@@ -185,12 +185,15 @@ class LSHMinHash(LSHBase):
         # elif isinstance(self.vectors, sparse._coo.coo_matrix):
             # not sure how efficient this is. switching a lot between data structures.
             logging.debug('using binary sparse matrices')
-            rng = np.random.default_rng(seed=3)
+            rng = np.random.default_rng(seed=3) # TODO: put this to class instantiation
             # vectors = mylsh.vectors
+            logging.debug("making hyperplanes")
             hyperplanes = rng.choice([-1, 1], (self.signature_size, self.vectors.shape[1]))
             # TODO: make vectors a csr matrix (?)
             hyperplanes = sparse.csr_matrix(hyperplanes)
+            logging.debug("making dot product")
             products = self.vectors.dot(hyperplanes.transpose())
+            logging.debug("making signature")
             products = products.toarray()
             sign = 1 + (products > 0) # TODO: can I change the downstream function for this? now it should be much easier to transform the signatures into a single string?
             self.signature = sign
