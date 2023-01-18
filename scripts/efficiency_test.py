@@ -217,6 +217,7 @@ if not server:
     # ## 4.c time disambiguation by document, vary number of mentions 
     if args.scale_mentions:
         print("Scaling the mentions per document")
+        logging.basicConfig(level=logging.DEBUG) 
         mentions_dataset_scaled = {}
 
         for k, data in mentions_dataset.items():
@@ -229,7 +230,7 @@ if not server:
         print("Timing disambiguation per document")
         timing_by_dataset = {}
         for name, mentions in mentions_dataset_scaled.items():
-            print(f"predicting for dataset {name}")
+            print(f"predicting for dataset {name}", flush=True)
             tempdict = {name: mentions} # format so that model.predict() works 
             start = time()
             predictions, timing = model.predict(tempdict)

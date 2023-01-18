@@ -3,6 +3,8 @@ from random import shuffle, seed
 import time 
 import numpy as np 
 import logging 
+from collections import defaultdict
+import itertools
 import pdb 
 import sys 
 from scipy import sparse
@@ -97,6 +99,22 @@ def minhash_signature_np(x, n_reps):
     # make signature
     sig = x_mult_permuted.argmax(axis=2)
     return sig 
+
+
+def signature_to_bucket(signature, n_bands):
+    "Collect items with same bands in buckets"
+    num_cols = signature.shape[0] # number of documents to classify
+    bands = np.split(signature, n_bands, axis=1)
+    buckets = []
+    for band in bands:
+        items_buckets = defaultdict(list)
+        items = np.vsplit(band, num_cols)
+        for i, item in enumerate(items): # this orders the row indices into groups that have the same signature 
+            item = tuple(item.flatten().astype(int)) 
+            items_buckets[item].append(i)  # assign row i to item--ie, groups observations into buckets with the same signature 
+        buckets.append(items_buckets)
+
+    return buckets
 
 
 class LSHBase:
@@ -235,6 +253,7 @@ class LSHMinHash(LSHBase):
             candidates = [set() for _ in range(self.vectors.shape[0])]
                         
             # if len(candidates) > 1:
+            # TODO: can I speed this up? 
             for band in bands:
                 groups = idx_unique_multidim(band)
                 groups = [g for g in groups if g.shape[0] > 1]
@@ -249,7 +268,29 @@ class LSHMinHash(LSHBase):
 
         self.candidates = candidates
 
-    def cluster(self, numpy_signature=False):
+    def get_candidates_new(self):
+        "extract similar candidates for each mention by comparing subsets of the signature"
+        logging.debug("getting candidates...")
+        n_bands = int(self.signature_size / self.band_length)
+        if self.vectors.shape[0] == 1:
+            candidates = [set()]
+            candidates[0].add(0)
+        else:
+            bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
+            candidates = [set() for _ in range(self.vectors.shape[0])]
+            for band in bands:
+                groups = idx_unique_multidim(band)
+                # groups = [g for g in groups if g.shape[0] > 1]
+                groups = itertools.filterfalse(lambda x: len(x) == 1, groups) # does not change much to the comprehension above, but seems to scale better
+                for g in groups:
+                    g = list(g)
+                    for i in g:
+                        candidates[i].update(g) # for row i, this also adds i to the candidates. would need to drop them later again, leading to another operation
+            [candidates[i].remove(i) for i in range(len(candidates))]
+            self.candidates = candidates
+
+
+    def cluster(self, numpy_signature=False, candidates="new"): # TODO: tidy this, only use the new function for getting candidates
         "find similar records for each mention"
         start = time.time()
         logging.debug("building vocabulary")
@@ -269,7 +310,10 @@ class LSHMinHash(LSHBase):
             else:
                 self.make_signature()
             logging.debug("getting candidate groups")
-            self.get_candidates()
+            if candidates == "old":
+                self.get_candidates()
+            elif candidates == "new": # this seems to be slower than the old approach 
+                self.get_candidates_new()
         self.time = time.time() - start 
 
     def summarise(self):
