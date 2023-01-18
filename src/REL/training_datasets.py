@@ -133,6 +133,7 @@ class TrainingEvaluationDatasets:
                     input_mentions = [m["mention"] for m in content]
                     lsh_corefs = LSHMinHash(mentions=input_mentions, shingle_size=2, signature_size=800, band_length=10)
                     lsh_corefs.cluster()
+                    lsh_corefs.efficiency_gain_comparisons()
                     assert len(content) == len(lsh_corefs.candidates)
                     # lsh_corefs.candidates are the input for below. indices refer to index in input_mentions
                     # call lsh here on all mentions 

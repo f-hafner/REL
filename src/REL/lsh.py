@@ -4,6 +4,7 @@ import time
 import numpy as np 
 import logging 
 from collections import defaultdict
+from sklearn.preprocessing import MultiLabelBinarizer
 import itertools
 import pdb 
 import sys 
@@ -140,43 +141,24 @@ class LSHBase:
     #     else:
     #         logging.debug("putting to numpy")
     #         self.vectors = np.stack(vectors)
-    def encode_binary(self, dest="sparse"):
+    def encode_binary(self, sparse_output=True):
         """Create binary vectors for each mention. 
         
         Parameters:
         ----------
-        dest: how to store the resulting matrix. One of 'list' (base python), 'numpy' (numpy array), or 'sparse' (sparse matrix)
+        sparse_output: Argument passed to `sklearn.preprocessing.MultiLabelBinarizer()`.
         """
-        assert dest in ["list", "numpy", "sparse"]
-        if dest == "list":
-            raise NotImplementedError("Not implemented yet.")
-        else:
-            # indices of ones 
-            logging.debug("making indices from vocab")# at least this gives me now the MemoryError.
-            one_indices = [[i for i in range(len(self.vocab)) if self.vocab[i] in shingle] for shingle in self.shingles]
-            if dest == "numpy":
-                logging.debug("making id_array")
-                id_array = np.eye(len(self.vocab)) # identiy array https://stackoverflow.com/questions/29831489/convert-array-of-indices-to-one-hot-encoded-array-in-numpy
-                logging.debug("making vectors")
-                vectors = [np.sum(id_array[i], axis=0) for i in one_indices]
-                logging.debug("stacking")
-                self.vectors = np.stack(vectors)
-            elif dest == "sparse":
-                logging.debug("making sparse matrix")
-                vectors = []
-                for idx in one_indices:
-                    a = sparse.lil_matrix((1,len(self.vocab)))
-                    a[0, idx] = 1
-                    vectors.append(a)
-                self.vectors = sparse.vstack(vectors)
-
+        logging.debug("making one-hot vectors")
+        binarizer = MultiLabelBinarizer(sparse_output=sparse_output)
+        vectors = binarizer.fit_transform(self.shingles)
+        self.vectors = vectors
 
 
 class LSHMinHash(LSHBase):
     "LSH with MinHashing and numpy"
 
     def __init__(self, mentions, shingle_size, signature_size, band_length, sparse_binary=True):
-        # sparse_binary: should the sparse 0/1 matrix be stored with scipy sparse? takes more time, but less memory
+        # sparse_binary: should the sparse 0/1 matrix be stored with scipy sparse? takes less memory.
         super().__init__(mentions, shingle_size)
         if signature_size % band_length != 0:
             raise ValueError("Signature needs to be divisible into equal-sized bands.")
@@ -286,8 +268,8 @@ class LSHMinHash(LSHBase):
                     g = list(g)
                     for i in g:
                         candidates[i].update(g) # for row i, this also adds i to the candidates. would need to drop them later again, leading to another operation
-            [candidates[i].remove(i) for i in range(len(candidates))]
-            self.candidates = candidates
+            [candidates[i].discard(i) for i in range(len(candidates))]
+        self.candidates = candidates
 
 
     def cluster(self, numpy_signature=False, candidates="new"): # TODO: tidy this, only use the new function for getting candidates
@@ -296,10 +278,7 @@ class LSHMinHash(LSHBase):
         logging.debug("building vocabulary")
         self._build_vocab()
         logging.debug("encoding to binary")
-        if self.sparse_binary:
-            self.encode_binary(dest="sparse")
-        else:
-            self.encode_binary(dest="numpy")
+        self.encode_binary(sparse_output=self.sparse_binary)
         logging.debug("making signature")
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
             print('self.vectors.shape[1] is 0.')
@@ -320,3 +299,14 @@ class LSHMinHash(LSHBase):
         sizes = [len(g) for g in self.candidates]
         print(f"took {self.time} seconds for {len(self.candidates)} mentions")
         print(f"average, min, max cluster size: {round(sum(sizes)/len(sizes),2)}, {min(sizes)}, {max(sizes)}")
+
+    def efficiency_gain_comparisons(self):
+        """
+        Compare number of comparisons made for coreference search with option "lsh" and option "all".
+        Useful for understanding time complexity. 
+        And to assess whether number of comparisons is meaningfully reduced
+        """
+        sizes = [len(g) for g in self.candidates]
+        runtime_all = len(self.candidates)*len(self.candidates)
+        runtime_lsh = len(self.candidates)*(sum(sizes)/len(sizes))
+        print(f"LSH makes fraction {round(runtime_lsh/runtime_all, 2)} of comparisons relative to option all.")
