@@ -50,7 +50,7 @@ def cols_to_int(a):
 
 
 def idx_unique_multidim(a):
-    "groups rows in a multidimensional arrays by their unique signature"
+    "groups row indices in a multidimensional arrays by their unique signature"
     # a = cols_to_int(a).squeeze() # wrong
     # a = cols_to_string(a).squeeze() # slow 
     a = cols_to_int(a).squeeze()
@@ -117,6 +117,65 @@ def signature_to_bucket(signature, n_bands):
 
     return buckets
 
+## new stuff
+def cols_to_int_multidim(a):
+    "combine columns in all rows to an integer: [[1,20,3], [1,4,10]] becomes [1203,1410]"
+    existing_powers = np.floor(np.log10(a))
+    n_bands, nrows, ncols = a.shape 
+
+    cumsum_powers = np.fliplr(np.cumsum(np.fliplr(existing_powers), axis=1))
+
+    add_powers = [x for x in reversed(range(ncols))]
+    add_powers = np.tile(add_powers, (nrows, 1))
+
+    mult_factor = cumsum_powers - existing_powers + add_powers  
+    summationvector = np.ones((ncols, 1)) 
+    out = np.matmul(a * 10**mult_factor, summationvector)
+    return out 
+
+def vectorize_signature_bands(a, n_bands, band_length):
+    """ 
+    Convert a signature array of dimension (n_items, signature_length) into an array of (n_bands, n_items, band_length).
+    
+    This is a vectorized version for np.vstack(np.split(a, indices_or_sections=n_bands, axis=1)). 
+    The idea is to then use a vectorized function to extract the indices, instead of looping over each element in the output of np.split().
+    """
+    n_items, signature_length = a.shape
+    
+    # stacked bands of each item, stacked together
+    stacked_bands = a.reshape(n_items*n_bands, band_length) 
+    # reorder so that the first band of all items comes first, then the second band of all items
+    reordering_vector = np.arange(n_items*n_bands).reshape(n_items, n_bands).T.reshape(1, -1)
+
+    result = stacked_bands[reordering_vector, :].reshape(n_bands, n_items, band_length)
+    
+    return result 
+
+# this replaces idx_multidim
+def group_unique_indices(a):
+    """
+    calculate groups of indices of unique rows in a multidimensional array with the same signature
+    the groups are returned by band.
+
+    Returns a list of lists. One list corresponds to each band, and it indicates the rows
+    of a that have the same band.
+    """
+    n_bands, n_items, length_band = a.shape
+    a = cols_to_int_multidim(a).squeeze()
+    
+    sort_idx = np.argsort(a, axis=1) # necessary for later, need to calc anyway
+    a_sorted = np.sort(a, axis=1) # faster alternative to np.take_along_axis(b, sort_idx, axis=1)
+
+    # indicators for where a sequence of different unique elements starts 
+    indicators =  a_sorted[:, 1:] != a_sorted[:, :-1]
+    first_element = np.tile([[True]], n_bands).T 
+    unq_first = np.concatenate((first_element, indicators), axis=1)
+
+    # calculate number of unique items 
+    unq_count = [np.diff(np.nonzero(row)[0]) for row in unq_first] # iterate through rows. 
+    unq_idx = [np.split(sort_idx[i], np.cumsum(count)) for i, count in enumerate(unq_count)]
+
+    return unq_idx
 
 class LSHBase:
     # Important: order of occurences in shingles and vectors = order of input list (=order of occurrence in document)
@@ -258,17 +317,20 @@ class LSHMinHash(LSHBase):
             candidates = [set()]
             candidates[0].add(0)
         else:
-            bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
+            # bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
             candidates = [set() for _ in range(self.vectors.shape[0])]
-            for band in bands:
-                groups = idx_unique_multidim(band)
-                # groups = [g for g in groups if g.shape[0] > 1]
-                groups = itertools.filterfalse(lambda x: len(x) == 1, groups) # does not change much to the comprehension above, but seems to scale better
+
+            bands = vectorize_signature_bands(self.signature, n_bands=n_bands, band_length=self.band_length)
+            buckets_by_band = group_unique_indices(bands)
+
+            for bucket in buckets_by_band:
+                # bucket = [list(group) for group in bucket]
+                groups = itertools.filterfalse(lambda x: len(x) == 1, bucket) # not sure this works for np arrays?
                 for g in groups:
                     g = list(g)
                     for i in g:
-                        candidates[i].update(g) # for row i, this also adds i to the candidates. would need to drop them later again, leading to another operation
-            [candidates[i].discard(i) for i in range(len(candidates))]
+                        candidates[i].update(g)
+                [candidates[i].discard(i) for i in range(len(candidates))]
         self.candidates = candidates
 
 
