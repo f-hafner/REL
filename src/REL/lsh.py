@@ -324,7 +324,7 @@ class LSHMinHash(LSHBase):
             bands = vectorize_signature_bands(self.signature, n_bands=n_bands, band_length=self.band_length)
             buckets_by_band = group_unique_indices(bands)
             groups = [tuple(i) for i in itertools.chain.from_iterable(buckets_by_band)] # flatten group; use tuple for applying set()
-            groups = set(groups) # we only need the unique clusters 
+            groups = set(groups) # we only need the unique groups 
 
             for group in groups:
                 for i in group:

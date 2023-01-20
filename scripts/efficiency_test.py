@@ -222,7 +222,7 @@ if not server:
 
         for k, data in mentions_dataset.items():
             mentions_dataset_scaled[k] = data # add the baseline data as in mentions_dataset
-            for f in [5, 50, 100, 300]:
+            for f in [5, 50, 100]:
                 d = data * f 
                 key = f"{k}_{f}"
                 mentions_dataset_scaled[key] = d
@@ -242,6 +242,7 @@ if not server:
             }
             
             if args.profile:
+                print("Profiling disambiguation for synthetic data set")
                 df_profile = profile_to_df(call="model.predict(tempdict)") 
                 timing_by_dataset[name]['profile'] = df_profile
 
