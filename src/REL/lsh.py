@@ -144,7 +144,7 @@ def vectorize_signature_bands(a, n_bands, band_length):
     
     # stacked bands of each item, stacked together
     stacked_bands = a.reshape(n_items*n_bands, band_length) 
-    # reorder so that the first band of all items comes first, then the second band of all items
+    # reorder so that the first band of all items comes first, then the second band of all items, etc.
     reordering_vector = np.arange(n_items*n_bands).reshape(n_items, n_bands).T.reshape(1, -1)
 
     result = stacked_bands[reordering_vector, :].reshape(n_bands, n_items, band_length)
@@ -167,13 +167,14 @@ def group_unique_indices(a):
     a_sorted = np.sort(a, axis=1) # faster alternative to np.take_along_axis(b, sort_idx, axis=1)
 
     # indicators for where a sequence of different unique elements starts 
-    indicators =  a_sorted[:, 1:] != a_sorted[:, :-1]
+    indicators = a_sorted[:, 1:] != a_sorted[:, :-1]
     first_element = np.tile([[True]], n_bands).T 
     unq_first = np.concatenate((first_element, indicators), axis=1)
 
     # calculate number of unique items 
-    unq_count = [np.diff(np.nonzero(row)[0]) for row in unq_first] # iterate through rows. 
-    unq_idx = [np.split(sort_idx[i], np.cumsum(count)) for i, count in enumerate(unq_count)]
+    unq_count = [np.diff(np.nonzero(row)[0]) for row in unq_first] # iterate through rows.
+    # split sorted array into groups of identical items. only keep groups with more than one item. 
+    unq_idx = [[a for a in np.split(sort_idx[i], np.cumsum(count)) if len(a) > 1] for i, count in enumerate(unq_count)] 
 
     return unq_idx
 
@@ -322,15 +323,14 @@ class LSHMinHash(LSHBase):
 
             bands = vectorize_signature_bands(self.signature, n_bands=n_bands, band_length=self.band_length)
             buckets_by_band = group_unique_indices(bands)
+            groups = [tuple(i) for i in itertools.chain.from_iterable(buckets_by_band)] # flatten group; use tuple for applying set()
+            groups = set(groups) # we only need the unique clusters 
 
-            for bucket in buckets_by_band:
-                # bucket = [list(group) for group in bucket]
-                groups = itertools.filterfalse(lambda x: len(x) == 1, bucket) # not sure this works for np arrays?
-                for g in groups:
-                    g = list(g)
-                    for i in g:
-                        candidates[i].update(g)
-                [candidates[i].discard(i) for i in range(len(candidates))]
+            for group in groups:
+                for i in group:
+                    candidates[i].update(group)
+
+            [candidates[i].discard(i) for i in range(len(candidates))]
         self.candidates = candidates
 
 
