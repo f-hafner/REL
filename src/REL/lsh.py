@@ -11,8 +11,6 @@ import sys
 from scipy import sparse
 seed(3)
 
-def split_mention(m):
-    return m.split(" ")
 
 def k_shingle(s, k):
     "convert string s into shingles of length k"
@@ -22,30 +20,20 @@ def k_shingle(s, k):
     return shingle
 
 
-def partition_signature(s, b):
-    "Convert signature s into b partitions of equal size"
-    assert len(s) % b == 0
-    rg = int(len(s) / b)
-    partitions = []
-    for i in range(0, len(s), rg):
-        v = s[i:i+rg]
-        partitions.append(v)
-    return partitions
+# def cols_to_int(a):
+#     "combine columns in all rows to an integer: [[1,20,3], [1,4,10]] becomes [1203,1410]"
+#     existing_powers = np.floor(np.log10(a))
+#     nrows, ncols = a.shape 
 
-def cols_to_int(a):
-    "combine columns in all rows to an integer: [[1,20,3], [1,4,10]] becomes [1203,1410]"
-    existing_powers = np.floor(np.log10(a))
-    nrows, ncols = a.shape 
+#     cumsum_powers = np.fliplr(np.cumsum(np.fliplr(existing_powers), axis=1))
 
-    cumsum_powers = np.fliplr(np.cumsum(np.fliplr(existing_powers), axis=1))
+#     add_powers = [x for x in reversed(range(ncols))]
+#     add_powers = np.tile(add_powers, (nrows, 1))
 
-    add_powers = [x for x in reversed(range(ncols))]
-    add_powers = np.tile(add_powers, (nrows, 1))
-
-    mult_factor = cumsum_powers - existing_powers + add_powers  
-    summationvector = np.ones((ncols, 1)) 
-    out = np.matmul(a * 10**mult_factor, summationvector)
-    return out 
+#     mult_factor = cumsum_powers - existing_powers + add_powers  
+#     summationvector = np.ones((ncols, 1)) 
+#     out = np.matmul(a * 10**mult_factor, summationvector)
+#     return out 
 
 
 
@@ -64,58 +52,58 @@ def idx_unique_multidim(a):
     return unq_idx
 
 
-def reshape_rows_reps(a):
-    "reshape a 3-d array of n_reps x n_rows x n_cols to n_rows x n_reps x n_cols"
-    n_reps, n_rows, n_cols = a.shape
-    a = a.reshape(n_reps*n_rows, n_cols)
-    # extractor indices: for 3 reps, 2 rows: [0,2,4,1,3,5]. to reorder a
-        # in other words: goes from 0 to (n_reps * n_rows). step sizes are n_rows. starts are the row indices
-    idx = np.arange(n_reps*n_rows).reshape(n_reps, n_rows).T.reshape(-1,1)
-    a = np.take_along_axis(a, idx, axis=0)
-    a = a.reshape(n_rows, n_reps, n_cols)
-    return a 
+# def reshape_rows_reps(a):
+#     "reshape a 3-d array of n_reps x n_rows x n_cols to n_rows x n_reps x n_cols"
+#     n_reps, n_rows, n_cols = a.shape
+#     a = a.reshape(n_reps*n_rows, n_cols)
+#     # extractor indices: for 3 reps, 2 rows: [0,2,4,1,3,5]. to reorder a
+#         # in other words: goes from 0 to (n_reps * n_rows). step sizes are n_rows. starts are the row indices
+#     idx = np.arange(n_reps*n_rows).reshape(n_reps, n_rows).T.reshape(-1,1)
+#     a = np.take_along_axis(a, idx, axis=0)
+#     a = a.reshape(n_rows, n_reps, n_cols)
+#     return a 
 
-def minhash_signature_np(x, n_reps):
-    """Make a minhash signature of array x with length n_reps.
+# def minhash_signature_np(x, n_reps):
+#     """Make a minhash signature of array x with length n_reps.
 
-    Inputs
-    ------
-    x: axis 0 are observations, columns are binary one-hot encoded vectors
-    """
-    # get indices 
-    indices = np.arange(x.shape[1])
-    rng = np.random.default_rng(12345) # TODO: this should be defined at class instantiation
+#     Inputs
+#     ------
+#     x: axis 0 are observations, columns are binary one-hot encoded vectors
+#     """
+#     # get indices 
+#     indices = np.arange(x.shape[1])
+#     rng = np.random.default_rng(12345) # TODO: this should be defined at class instantiation
 
-    # expand by n_reps 
-    indices_mult = np.tile(indices, (n_reps, 1)) # reorder the columns n_reps times 
-    x_mult = np.tile(x, (n_reps, 1)).reshape((n_reps,) + x.shape) # new shape: (n_resp, x.shape[0], x.shape[1
+#     # expand by n_reps 
+#     indices_mult = np.tile(indices, (n_reps, 1)) # reorder the columns n_reps times 
+#     x_mult = np.tile(x, (n_reps, 1)).reshape((n_reps,) + x.shape) # new shape: (n_resp, x.shape[0], x.shape[1
 
-    # permute indices and apply to x_mult
-    permuted_indices = rng.permuted(indices_mult, axis=1)
-    x_mult_permuted = np.take_along_axis(x_mult, permuted_indices[:, np.newaxis], 2)
+#     # permute indices and apply to x_mult
+#     permuted_indices = rng.permuted(indices_mult, axis=1)
+#     x_mult_permuted = np.take_along_axis(x_mult, permuted_indices[:, np.newaxis], 2)
 
-    # for the reduction below, need to have all samples of the same observation in one block
-    x_mult_permuted = reshape_rows_reps(x_mult_permuted)
+#     # for the reduction below, need to have all samples of the same observation in one block
+#     x_mult_permuted = reshape_rows_reps(x_mult_permuted)
 
-    # make signature
-    sig = x_mult_permuted.argmax(axis=2)
-    return sig 
+#     # make signature
+#     sig = x_mult_permuted.argmax(axis=2)
+#     return sig 
 
 
-def signature_to_bucket(signature, n_bands):
-    "Collect items with same bands in buckets"
-    num_cols = signature.shape[0] # number of documents to classify
-    bands = np.split(signature, n_bands, axis=1)
-    buckets = []
-    for band in bands:
-        items_buckets = defaultdict(list)
-        items = np.vsplit(band, num_cols)
-        for i, item in enumerate(items): # this orders the row indices into groups that have the same signature 
-            item = tuple(item.flatten().astype(int)) 
-            items_buckets[item].append(i)  # assign row i to item--ie, groups observations into buckets with the same signature 
-        buckets.append(items_buckets)
+# def signature_to_bucket(signature, n_bands):
+#     "Collect items with same bands in buckets"
+#     num_cols = signature.shape[0] # number of documents to classify
+#     bands = np.split(signature, n_bands, axis=1)
+#     buckets = []
+#     for band in bands:
+#         items_buckets = defaultdict(list)
+#         items = np.vsplit(band, num_cols)
+#         for i, item in enumerate(items): # this orders the row indices into groups that have the same signature 
+#             item = tuple(item.flatten().astype(int)) 
+#             items_buckets[item].append(i)  # assign row i to item--ie, groups observations into buckets with the same signature 
+#         buckets.append(items_buckets)
 
-    return buckets
+#     return buckets
 
 ## new stuff
 def cols_to_int_multidim(a):
@@ -191,17 +179,7 @@ class LSHBase:
         vocab = list(set([shingle for sublist in self.shingles for shingle in sublist]))
         self.vocab = vocab
 
-    # def encode_binary(self, to_numpy=False):
-    #     logging.debug(f"creating lists with binary vectors. Vocabulary size is {len(self.vocab)}")
-    #     # pdb.set_trace()
-    #     vectors = [[1 if word in cur_shingles else 0 for word in self.vocab] for cur_shingles in self.shingles]
-    #     logging.debug(f"size of vectors: {sys.getsizeof(vectors)}")
-    #     if not to_numpy:
-    #         self.vectors = vectors 
-    #     else:
-    #         logging.debug("putting to numpy")
-    #         self.vectors = np.stack(vectors)
-    def encode_binary(self, sparse_output=True):
+    def encode_binary(self, sparse_output=True): # TODO: remove this argument 
         """Create binary vectors for each mention. 
         
         Parameters:
@@ -258,57 +236,43 @@ class LSHMinHash(LSHBase):
             sign = 1 + (products > 0) # TODO: can I change the downstream function for this? now it should be much easier to transform the signatures into a single string?
             self.signature = sign
 
-
-            # while i < self.signature_size:
-            #     plane = hyperplanes[i, :].transpose()
-            #     out = self.vectors.dot(plane)
-            #     out = out.toarray()
-                
-            #     sig_i = (out > 0)
-            #     sig_i = sig_i.astype(int)
-            #     sig_i = 1 + sig_i # TODO: can I change the downstream function for this? now it should be much easier to transform the signatures into a single string?
-            #     templist.append(sig_i)
-            #     i += 1
-
-            # self.signature = np.stack(templist, axis=1).squeeze()
             
-
-    def make_signature_np(self):
-        signature = minhash_signature_np(self.vectors, self.signature_size)
-        self.signature = signature + np.ones(signature.shape)  # this is for the log10 operations: do not want to have 0s
+    # def make_signature_np(self):
+    #     signature = minhash_signature_np(self.vectors, self.signature_size)
+    #     self.signature = signature + np.ones(signature.shape)  # this is for the log10 operations: do not want to have 0s
 
     def all_candidates_to_all(self):
         "fall-back option to return the non-clustered input: each mention is a candidate coreference for all"
         n_mentions = self.vectors.shape[0]
         self.candidates = [set(range(n_mentions)) for _ in range(n_mentions)]
 
-    def get_candidates(self): ## TODO: use itertools
-        "extract similar candidates for each mention by comparing subsets of the signature"
-        logging.debug("getting candidates...")
-        n_bands = int(self.signature_size / self.band_length)
+    # def get_candidates(self): ## TODO: use itertools
+    #     "extract similar candidates for each mention by comparing subsets of the signature"
+    #     logging.debug("getting candidates...")
+    #     n_bands = int(self.signature_size / self.band_length)
         
-        if self.vectors.shape[0] == 1:
-            candidates = [set()]
-            candidates[0].add(0)
-        else:
-            bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
-            candidates = [set() for _ in range(self.vectors.shape[0])]
+    #     if self.vectors.shape[0] == 1:
+    #         candidates = [set()]
+    #         candidates[0].add(0)
+    #     else:
+    #         bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
+    #         candidates = [set() for _ in range(self.vectors.shape[0])]
                         
-            # if len(candidates) > 1:
-            # TODO: can I speed this up? 
-            for band in bands:
-                groups = idx_unique_multidim(band)
-                groups = [g for g in groups if g.shape[0] > 1]
-                for g in groups:
-                    g = list(g)
-                    for i in g:
-                        for j in g:
-                            if i != j:
-                                candidates[i].add(j)
-            # else: # idx_unique_multidim above does not work when there is only one candidate
-            #     candidates[0].add(0)
+    #         # if len(candidates) > 1:
+    #         # TODO: can I speed this up? 
+    #         for band in bands:
+    #             groups = idx_unique_multidim(band)
+    #             groups = [g for g in groups if g.shape[0] > 1]
+    #             for g in groups:
+    #                 g = list(g)
+    #                 for i in g:
+    #                     for j in g:
+    #                         if i != j:
+    #                             candidates[i].add(j)
+    #         # else: # idx_unique_multidim above does not work when there is only one candidate
+    #         #     candidates[0].add(0)
 
-        self.candidates = candidates
+    #     self.candidates = candidates
 
     def get_candidates_new(self):
         "extract similar candidates for each mention by comparing subsets of the signature"
