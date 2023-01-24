@@ -28,14 +28,15 @@ def cols_to_int_multidim(a):
     ------
     Advantage: uses vectorized numpy to create a unique signature.
     Disadvantage: Because one additional row increases the size of the integer at least by an order of magnitude, 
-    this only works for cases where the bands are not too large (otherwise integer overflow problems).
+    this only works for cases where the bands are not too large. 
 
     In practice I have found that optimal bands are typically not long enough to cause problems.
     """
     existing_powers = np.floor(np.log10(a))
     n_bands, nrows, ncols = a.shape 
 
-    cumsum_powers = np.fliplr(np.cumsum(np.fliplr(existing_powers), axis=1))
+    # cumsum_powers = np.fliplr(np.cumsum(np.fliplr(existing_powers), axis=1))
+    cumsum_powers = np.flip(np.cumsum(np.flip(existing_powers, axis=2), axis=2), axis=2)
 
     add_powers = [x for x in reversed(range(ncols))]
     add_powers = np.tile(add_powers, (nrows, 1))
@@ -66,11 +67,10 @@ def vectorize_signature_bands(a, n_bands, band_length):
 # this replaces idx_multidim
 def group_unique_indices(a):
     """
-    Calculate groups of indices of unique rows in a multidimensional array with the same signature
-    the groups are returned by band.
+    Calculate groups of indices of unique rows in a multidimensional array with the same signature.
 
     Returns a list of lists. One list corresponds to each band, and it indicates the rows
-    of a that have the same band.
+    of `a` that have the same band.
     """
     n_bands, n_items, length_band = a.shape
     a = cols_to_int_multidim(a).squeeze()
