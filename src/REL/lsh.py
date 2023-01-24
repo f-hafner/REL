@@ -1,3 +1,10 @@
+"""
+This implements a simple version of locality-sensitive hashing.
+The main reference is chapter 3 in "Mining of Massive Datasets" (http://www.mmds.org/).
+
+To allow for high-dimensional data, it stores the feature vectors as sparse matrices,
+and uses random projections as hash functions. 
+"""
 
 import time 
 import numpy as np 
@@ -8,8 +15,7 @@ import pdb
 from scipy import sparse
 
 # TODO:
-    # document the class?
-    # add the academic references
+    # document the class? -- after swapping the arguments 
 
 
 def k_shingle(s, k):
@@ -153,13 +159,12 @@ class LSHRandomProjections(LSHBase):
     """
     # TODO: document more 
 
-    def __init__(self, mentions, shingle_size, signature_size, band_length, seed=3):
+    def __init__(self, mentions, shingle_size, n_bands, band_length, seed=3):
         # sparse_binary: should the sparse 0/1 matrix be stored with scipy sparse? takes less memory.
         super().__init__(mentions, shingle_size)
-        if signature_size % band_length != 0:
-            raise ValueError("Signature needs to be divisible into equal-sized bands.")
-        self.signature_size = signature_size 
+        self.n_bands = n_bands
         self.band_length = band_length 
+        self.signature_size = n_bands * band_length 
         self.rng = np.random.default_rng(seed=seed)
     
     def make_signature(self):
@@ -192,14 +197,14 @@ class LSHRandomProjections(LSHBase):
         :return: list of sets of candidate indices.
         """
         logging.debug("getting candidates...")
-        n_bands = int(self.signature_size / self.band_length)
+        # n_bands = int(self.signature_size / self.band_length)
         if self.vectors.shape[0] == 1:
             candidates = [set()]
             candidates[0].add(0)
         else:
             candidates = [set() for _ in range(self.vectors.shape[0])]
 
-            bands = signature_to_3d_bands(self.signature, n_bands=n_bands, band_length=self.band_length)
+            bands = signature_to_3d_bands(self.signature, n_bands=self.n_bands, band_length=self.band_length)
             buckets_by_band = group_unique_indices(bands)
             groups = [tuple(i) for i in itertools.chain.from_iterable(buckets_by_band)] # flatten group; use tuple for applying set()
             groups = set(groups) # we only need the unique groups 
