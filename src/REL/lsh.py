@@ -7,6 +7,10 @@ import itertools
 import pdb 
 from scipy import sparse
 
+# TODO:
+    # document the class?
+    # add the academic references
+
 
 def k_shingle(s, k):
     "convert string s into shingles of length k"
@@ -16,24 +20,18 @@ def k_shingle(s, k):
     return shingle
 
 
-
-# def idx_unique_multidim(a):
-#     "groups row indices in a multidimensional arrays by their unique signature"
-#     # a = cols_to_int(a).squeeze() # wrong
-#     # a = cols_to_string(a).squeeze() # slow 
-#     a = cols_to_int(a).squeeze()
-#     sort_idx = np.argsort(a)
-#     sort_idx
-#     a_sorted = a[sort_idx]
-#     unq_first = np.concatenate(([True], a_sorted[1:] != a_sorted[:-1])) # "is the current value different from the previous?". the concat of [True]: because the first occurrence is always True (ie the first time it occur)
-#     unq_items = a_sorted[unq_first]
-#     unq_count = np.diff(np.nonzero(unq_first)[0]) # np.nonzero(unq_first)[0] gives the indices of first elements in a_sorted
-#     unq_idx = np.split(sort_idx, np.cumsum(unq_count))
-#     return unq_idx
-
-
 def cols_to_int_multidim(a):
-    "combine columns in all rows to an integer: [[1,20,3], [1,4,10]] becomes [1203,1410]"
+    """
+    Combine columns in all rows to an integer: [[1,20,3], [1,4,10]] becomes [1203,1410].
+
+    Notes
+    ------
+    Advantage: uses vectorized numpy to create a unique signature.
+    Disadvantage: Because one additional row increases the size of the integer at least by an order of magnitude, 
+    this only works for cases where the bands are not too large (otherwise integer overflow problems).
+
+    In practice I have found that optimal bands are typically not long enough to cause problems.
+    """
     existing_powers = np.floor(np.log10(a))
     n_bands, nrows, ncols = a.shape 
 
@@ -68,7 +66,7 @@ def vectorize_signature_bands(a, n_bands, band_length):
 # this replaces idx_multidim
 def group_unique_indices(a):
     """
-    calculate groups of indices of unique rows in a multidimensional array with the same signature
+    Calculate groups of indices of unique rows in a multidimensional array with the same signature
     the groups are returned by band.
 
     Returns a list of lists. One list corresponds to each band, and it indicates the rows
@@ -101,71 +99,61 @@ class LSHBase:
             self.shingles = [k_shingle(m, shingle_size) for m in mentions]
 
     def _build_vocab(self):
-        # shingles = [v["shingles"] for v in self.mentions.values()]
+        "Build a vocabulary of the shingles in a document."
         vocab = list(set([shingle for sublist in self.shingles for shingle in sublist]))
         self.vocab = vocab
 
-    def encode_binary(self, sparse_output=True): # TODO: remove this argument 
-        """Create binary vectors for each mention. 
-        
-        Parameters:
-        ----------
-        sparse_output: Argument passed to `sklearn.preprocessing.MultiLabelBinarizer()`.
+    def encode_binary(self): 
+        """
+        Create sparse binary vectors for each mention.
+
+        Output: CSR sparse matrix.
+        Rows indicate mentions, columns indicate whether the mention contains the shingle. 
         """
         logging.debug("making one-hot vectors")
-        binarizer = MultiLabelBinarizer(sparse_output=sparse_output)
-        vectors = binarizer.fit_transform(self.shingles)
-        self.vectors = vectors
+        binarizer = MultiLabelBinarizer(sparse_output=True)
+        self.vectors = binarizer.fit_transform(self.shingles)
 
 
 class LSHMinHash(LSHBase):
     "LSH with MinHashing and numpy"
 
-    def __init__(self, mentions, shingle_size, signature_size, band_length, sparse_binary=True, seed=3):
+    def __init__(self, mentions, shingle_size, signature_size, band_length, seed=3):
         # sparse_binary: should the sparse 0/1 matrix be stored with scipy sparse? takes less memory.
         super().__init__(mentions, shingle_size)
         if signature_size % band_length != 0:
             raise ValueError("Signature needs to be divisible into equal-sized bands.")
         self.signature_size = signature_size 
         self.band_length = band_length 
-        self.sparse_binary = sparse_binary
         self.rng = np.random.default_rng(seed=seed)
     
     def make_signature(self):
-        "make array of dense vectors with MinHashing. each row is one mention"
+        """
+        Create a signature for a given mention, using random projections.
+        """
         logging.debug(f"Making signature. vectors shape is {self.vectors.shape}")
-        # rng = np.random.default_rng(seed=3)
-        # older versions of scipy have not _coo attribute. TODO: fix this
-        # elif isinstance(self.vectors, sparse._coo.coo_matrix):
-            # not sure how efficient this is. switching a lot between data structures.
-        logging.debug('using binary sparse matrices')
-        # rng = np.random.default_rng(seed=3) # TODO: put this to class instantiation
-        # vectors = mylsh.vectors
-        logging.debug("making hyperplanes")
+        # TODO: can this be more memory-efficient by generating directly the scipy sparse function? 
+        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.random.html
         hyperplanes = self.rng.choice([-1, 1], (self.signature_size, self.vectors.shape[1]))
-        # TODO: make vectors a csr matrix (?)
         hyperplanes = sparse.csr_matrix(hyperplanes)
-        logging.debug("making dot product")
-        products = self.vectors.dot(hyperplanes.transpose())
-        logging.debug("making signature")
-        products = products.toarray()
+        products = self.vectors.dot(hyperplanes.transpose()).toarray()
+        # products = products.toarray()
         sign = 1 + (products > 0) # TODO: can I change the downstream function for this? now it should be much easier to transform the signatures into a single string?
         self.signature = sign
 
     def all_candidates_to_all(self):
-        "fall-back option to return the non-clustered input: each mention is a candidate coreference for all"
+        "Fall-back option to return the non-clustered input: each mention is a candidate coreference for all"
         n_mentions = self.vectors.shape[0]
         self.candidates = [set(range(n_mentions)) for _ in range(n_mentions)]
 
     def get_candidates(self):
-        "extract similar candidates for each mention by comparing subsets of the signature"
+        "Extract similar candidates for each mention by comparing subsets of the signature"
         logging.debug("getting candidates...")
         n_bands = int(self.signature_size / self.band_length)
         if self.vectors.shape[0] == 1:
             candidates = [set()]
             candidates[0].add(0)
         else:
-            # bands = np.split(ary=self.signature, indices_or_sections=n_bands, axis=1)
             candidates = [set() for _ in range(self.vectors.shape[0])]
 
             bands = vectorize_signature_bands(self.signature, n_bands=n_bands, band_length=self.band_length)
@@ -180,18 +168,19 @@ class LSHMinHash(LSHBase):
             [candidates[i].discard(i) for i in range(len(candidates))]
         self.candidates = candidates
 
-
-    def cluster(self, numpy_signature=False, candidates="new"): # TODO: tidy this, only use the new function for getting candidates
-        "find similar records for each mention"
+    def cluster(self): 
+        """
+        Cluster mentions together based on their similarity. This is the main functionality of the LSH class.
+        """
         start = time.time()
         logging.debug("building vocabulary")
         self._build_vocab()
         logging.debug("encoding to binary")
-        self.encode_binary(sparse_output=self.sparse_binary)
+        self.encode_binary()
         logging.debug("making signature")
 
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
-            print('self.vectors.shape[1] is 0.')
+            logging.debug('self.vectors.shape[1] is 0.')
             self.all_candidates_to_all()
         else:
             self.make_signature()
@@ -200,6 +189,7 @@ class LSHMinHash(LSHBase):
         self.time = time.time() - start 
 
     def summarise(self):
+        "Summarise the time taken and output from clustering one LSH instance."
         sizes = [len(g) for g in self.candidates]
         print(f"took {self.time} seconds for {len(self.candidates)} mentions")
         print(f"average, min, max cluster size: {round(sum(sizes)/len(sizes),2)}, {min(sizes)}, {max(sizes)}")
