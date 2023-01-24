@@ -3,17 +3,23 @@
 
 from pathlib import Path
 
-from REL.lsh import vectorize_signature_bands, group_unique_indices, cols_to_int_multidim
+import REL.lsh as lsh 
+# from REL.lsh import vectorize_signature_bands, group_unique_indices, cols_to_int_multidim
 import numpy as np
 import itertools 
 
+
+def test_k_shingle():
+    output = lsh.k_shingle("random string", 5)
+    expected = ["rando", "andom", "ndom ", "dom s", "om st", "m str", " stri", "strin", "tring"]
+    assert output == expected, "shingles not built correctly"
 
 
 def test_cols_to_int_multidim():
     a = np.array([[[1, 20, 3], [1, 4, 10]],
              [[1, 3, 5], [100, 3, 50]]]
             )
-    output = cols_to_int_multidim(a) 
+    output = lsh.cols_to_int_multidim(a) 
     expected = np.array(
         [
             [[1203], [1410]],
@@ -22,13 +28,19 @@ def test_cols_to_int_multidim():
     )
     assert np.all(output == expected), "rows do not convert correctly to integer"
 
-def test_vectorize_signature_bands():
-    a = np.array([[1, 4, 7, 8, 10, 8], [5, 3, 2, 6, 11, 0], [1, 4, 2, 6, 13, 15]])
+def test_signature_to_3d_bands():
+    a = np.array(
+        [
+            [1, 4, 7, 8, 10, 8], 
+            [5, 3, 2, 6, 11, 0], 
+            [1, 4, 2, 6, 13, 15]
+        ]
+    )
 
     n_bands = 2
     n_items = a.shape[0]
     band_length = int(a.shape[1]/n_bands)
-    result = vectorize_signature_bands(a, n_bands=n_bands, band_length=band_length)
+    result = lsh.signature_to_3d_bands(a, n_bands=n_bands, band_length=band_length)
 
     expected = np.vstack(np.split(a, n_bands, axis=1)).reshape(n_bands, n_items, -1)
     assert np.all(result == expected), "signature bands not vectorized correctly"
@@ -39,7 +51,7 @@ def test_group_unique_indices():
     a = np.array([[[1, 4], [1, 4], [5,3], [5, 3], [1 , 2]],
                     [[7,8], [2, 7], [2, 7], [7, 8], [10, 3]]
                   ]) 
-    output = group_unique_indices(a)
+    output = lsh.group_unique_indices(a)
 
     # build expected
     groups_band0 = [[0, 1], [2, 3]]

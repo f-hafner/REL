@@ -13,7 +13,11 @@ from scipy import sparse
 
 
 def k_shingle(s, k):
-    "convert string s into shingles of length k"
+    """
+    Convert string s into shingles of length k
+
+    :return: List of shingles
+    """
     shingle = []
     for i in range(len(s) - k + 1):
         shingle.append(s[i:(i+k)])
@@ -24,13 +28,16 @@ def cols_to_int_multidim(a):
     """
     Combine columns in all rows to an integer: [[1,20,3], [1,4,10]] becomes [1203,1410].
 
+    :return: An array of shape (n, 1), where the horizontally neighboring column values 
+    are appended together.
+
     Notes
     ------
     Advantage: uses vectorized numpy to create a unique signature.
     Disadvantage: Because one additional row increases the size of the integer at least by an order of magnitude, 
     this only works for cases where the bands are not too large. 
 
-    In practice I have found that optimal bands are typically not long enough to cause problems.
+    In practice, optimal bands are typically not long enough to cause problems.
     """
     existing_powers = np.floor(np.log10(a))
     n_bands, nrows, ncols = a.shape 
@@ -46,12 +53,19 @@ def cols_to_int_multidim(a):
     out = np.matmul(a * 10**mult_factor, summationvector)
     return out 
 
-def vectorize_signature_bands(a, n_bands, band_length):
+def signature_to_3d_bands(a, n_bands, band_length):
     """ 
-    Convert a signature array of dimension (n_items, signature_length) into an array of (n_bands, n_items, band_length).
+    Convert a signature array of dimension (n_items, signature_length) into an array 
+    of (n_bands, n_items, band_length).
+
+    :return: An array of shape (n_bands, n_items, band_length)
     
-    This is a vectorized version for np.vstack(np.split(a, indices_or_sections=n_bands, axis=1)). 
-    The idea is to then use a vectorized function to extract the indices, instead of looping over each element in the output of np.split().
+    Details:
+    --------
+    This produces the same output as np.vstack(np.split(a, indices_or_sections=n_bands, axis=1)).
+    When further processing the output, this is a useful alternative to looping on the output of
+    np.split(a, indices_or_sections=n_bands, axis=1) because a single vectorized call can be used,
+    while np.vstack(np.split(...)) is likely to be less efficient. 
     """
     n_items, signature_length = a.shape
     
@@ -67,10 +81,13 @@ def vectorize_signature_bands(a, n_bands, band_length):
 # this replaces idx_multidim
 def group_unique_indices(a):
     """
-    Calculate groups of indices of unique rows in a multidimensional array with the same signature.
+    In a 3-dimensional array, for each array (axis 0), 
+    calculate the indices of rows (axis=1) that are identical.
 
-    Returns a list of lists. One list corresponds to each band, and it indicates the rows
-    of `a` that have the same band.
+    :return: a list of lists. Outer lists correspond to bands. 
+    Inner lists correspond to the row indices that 
+    have the same values in their columns. An item 
+    in the inner list is an np.array.
     """
     n_bands, n_items, length_band = a.shape
     a = cols_to_int_multidim(a).squeeze()
@@ -91,6 +108,10 @@ def group_unique_indices(a):
     return unq_idx
 
 class LSHBase:
+    """
+    Base class for locality-sensitive hashing, 
+    with methods for one-hot encoding and building a vocabulary of shingles
+    """
     # Important: order of occurences in shingles and vectors = order of input list (=order of occurrence in document)
     def __init__(self, mentions, shingle_size):
         if isinstance(mentions, dict):
@@ -99,7 +120,9 @@ class LSHBase:
             self.shingles = [k_shingle(m, shingle_size) for m in mentions]
 
     def _build_vocab(self):
-        "Build a vocabulary of the shingles in a document."
+        """
+        Build a vocabulary of the shingles in a document.
+        """
         vocab = list(set([shingle for sublist in self.shingles for shingle in sublist]))
         self.vocab = vocab
 
@@ -107,8 +130,8 @@ class LSHBase:
         """
         Create sparse binary vectors for each mention.
 
-        Output: CSR sparse matrix.
-        Rows indicate mentions, columns indicate whether the mention contains the shingle. 
+        :return: CSR sparse matrix. Rows indicate mentions, columns indicate whether 
+        the mention contains the shingle. 
         """
         logging.debug("making one-hot vectors")
         binarizer = MultiLabelBinarizer(sparse_output=True)
@@ -117,7 +140,7 @@ class LSHBase:
 
 class LSHRandomProjections(LSHBase):
     """
-    A class for locality-sensitive hashing with random projections.
+    Class for locality-sensitive hashing with random projections.
     
 
     Parameters:
@@ -149,17 +172,25 @@ class LSHRandomProjections(LSHBase):
         hyperplanes = self.rng.choice([-1, 1], (self.signature_size, self.vectors.shape[1]))
         hyperplanes = sparse.csr_matrix(hyperplanes)
         products = self.vectors.dot(hyperplanes.transpose()).toarray()
-        # products = products.toarray()
-        sign = 1 + (products > 0) # TODO: can I change the downstream function for this? now it should be much easier to transform the signatures into a single string?
+        sign = 1 + (products > 0)
         self.signature = sign
 
     def all_candidates_to_all(self):
-        "Fall-back option to return the non-clustered input: each mention is a candidate coreference for all"
+        """
+        Fall-back option to return the non-clustered input.
+        Each mention is a candidate coreference for all mentions. This is useful in 
+        edge cases where no single mention is longer than the shingle size.
+        """
         n_mentions = self.vectors.shape[0]
         self.candidates = [set(range(n_mentions)) for _ in range(n_mentions)]
 
     def get_candidates(self):
-        "Extract similar candidates for each mention by comparing subsets of the signature"
+        """
+        For each mention, extract most similar mentions based on whether part 
+        of their signatures overlap.
+
+        :return: list of sets of candidate indices.
+        """
         logging.debug("getting candidates...")
         n_bands = int(self.signature_size / self.band_length)
         if self.vectors.shape[0] == 1:
@@ -168,7 +199,7 @@ class LSHRandomProjections(LSHBase):
         else:
             candidates = [set() for _ in range(self.vectors.shape[0])]
 
-            bands = vectorize_signature_bands(self.signature, n_bands=n_bands, band_length=self.band_length)
+            bands = signature_to_3d_bands(self.signature, n_bands=n_bands, band_length=self.band_length)
             buckets_by_band = group_unique_indices(bands)
             groups = [tuple(i) for i in itertools.chain.from_iterable(buckets_by_band)] # flatten group; use tuple for applying set()
             groups = set(groups) # we only need the unique groups 
@@ -182,7 +213,9 @@ class LSHRandomProjections(LSHBase):
 
     def cluster(self): 
         """
-        Cluster mentions together based on their similarity. This is the main functionality of the LSH class.
+        Main functionality of this class: cluster mentions together based on their similarity. 
+
+        :return: for each mention, mention index of most similar other mentions based on LSH.
         """
         start = time.time()
         logging.debug("building vocabulary")
@@ -190,7 +223,6 @@ class LSHRandomProjections(LSHBase):
         logging.debug("encoding to binary")
         self.encode_binary()
         logging.debug("making signature")
-
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
             logging.debug('self.vectors.shape[1] is 0.')
             self.all_candidates_to_all()
