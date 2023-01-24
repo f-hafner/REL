@@ -137,12 +137,11 @@ class TrainingEvaluationDatasets:
             else:
                 if search_corefs_in == 'lsh':
                     input_mentions = [m["mention"] for m in content]
-                    # TODO: set optimal parameters here 
                     lsh_corefs = LSHRandomProjections(
                         mentions=input_mentions,
                         shingle_size=2,
-                        n_bands=80,
-                        band_length=10
+                        n_bands=400,
+                        band_length=15
                     )
                     lsh_corefs.cluster()
                     assert len(content) == len(lsh_corefs.candidates)
