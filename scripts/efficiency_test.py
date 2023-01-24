@@ -9,11 +9,7 @@ from REL.training_datasets import TrainingEvaluationDatasets
 np.random.seed(seed=42)
 
 parser = argparse.ArgumentParser()
-# parser.add_argument( 
-#     "--no_corefs",
-#     action="store_true",
-#     help="use function with_coref()?", 
-#     default=False)
+
 parser.add_argument(
     '--search_corefs',
     type=str,
@@ -21,7 +17,6 @@ parser.add_argument(
     default='all',
     help="Setting for search_corefs in Entity Disambiguation."
 )
-
 parser.add_argument(
     "--profile",
     action="store_true",
@@ -73,11 +68,6 @@ def profile_to_df(call):
     return df
 
 
-
-# TODO:
-# make log files!?
-# adjust folder structure on computer and in script 
-
 args = parser.parse_args()
 print(f"args.search_corefs is {args.search_corefs}")
 
@@ -93,7 +83,6 @@ wiki_version = "wiki_2019"
 datasets = TrainingEvaluationDatasets(base_url, wiki_version, args.search_corefs).load()[args.name_dataset] 
 save_data_to = f"{base_url}/efficiency_test/" # save all recorded in this directory 
 
-# random_docs = np.random.choice(list(datasets.keys()), 50)
 
 server = False
 docs = {}
@@ -150,9 +139,7 @@ if not server:
     tagger_ner = SequenceTagger.load("ner-fast")
 
     start = time()
-    mentions_dataset, n_mentions = mention_detection.find_mentions(docs, tagger_ner) # TODO: here corefs have an impact! check how.
-        # but what we do in the mention detection here has no impact on what we below in ED. 
-        # so would we expect an effect here, or only below?
+    mentions_dataset, n_mentions = mention_detection.find_mentions(docs, tagger_ner)
     print("MD took: {}".format(time() - start))
 
     # 3. Load model.
@@ -161,10 +148,6 @@ if not server:
         "model_path": "{}/{}/generated/model".format(base_url, wiki_version),
     }
     model = EntityDisambiguation(base_url, wiki_version, config, search_corefs=args.search_corefs) 
-        # model.coref is a training data set
-        # model.coref has method with_coref
-        # compare the training data sets when using corefs and when not
-        # note that the data are loaded elsewhere! so not sure this is the right place to add the option? 
 
     # 4. Entity disambiguation.
     start = time()
@@ -178,41 +161,17 @@ if not server:
     }
     
     filename = f"{save_data_to}predictions/{args.name_dataset}_{args.n_docs}_{args.search_corefs}"
-    # if args.no_corefs:
-    #     filename = f"{filename}_nocoref"
 
     with open(f"{filename}.pickle", "wb") as f:
         pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)        
 
-    # ## 4.b Profile disambiguation
+    # ## 4.b Profile the disambiguation part 
     if args.profile:
         print("Profiling disambiguation")
         filename = f"{save_data_to}profile/{args.name_dataset}_{args.n_docs}_{args.search_corefs}"
-        # if args.no_corefs:
-        #     filename = f"{filename}_nocoref"
 
         df_stats = profile_to_df(call="model.predict(mentions_dataset)")
-        # cProfile.run("model.predict(mentions_dataset)", filename="temp.txt")
-        # st = pstats.Stats("temp.txt")
-
-        # keys_from_k = ['file', 'line', 'fn']
-        # keys_from_v = ['cc', 'ncalls', 'tottime', 'cumtime', 'callers']
-        # data = {k: [] for k in keys_from_k + keys_from_v}
-
-        # s = st.stats
-
-        # for k in s.keys():
-        #     for i, kk in enumerate(keys_from_k):
-        #         data[kk].append(k[i])
-
-        #     for i, kk in enumerate(keys_from_v):
-        #         data[kk].append(s[k][i])
-
-        # df_stats = pd.DataFrame(data)
-        # os.remove('temp.txt')
-
         df_stats.to_csv(f"{filename}.csv", index=False)
-
 
     # ## 4.c time disambiguation by document, vary number of mentions 
     if args.scale_mentions:
@@ -245,13 +204,10 @@ if not server:
                 print("Profiling disambiguation for synthetic data set")
                 df_profile = profile_to_df(call="model.predict(tempdict)") 
                 timing_by_dataset[name]['profile'] = df_profile
-
         
-        # save timing by dataet
+        # save timing by dataset
         filename = f"{save_data_to}n_mentions_time/{args.name_dataset}_{args.search_corefs}"
-        # if args.no_corefs:
-        #     filename = f"{filename}_nocoref"
-        
+
         with open(f"{filename}.pickle", "wb") as f:
             pickle.dump(timing_by_dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
 
