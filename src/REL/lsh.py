@@ -1,5 +1,5 @@
 """
-This implements a simple version of locality-sensitive hashing.
+Implement a simple version of locality-sensitive hashing.
 The main reference is chapter 3 in "Mining of Massive Datasets" (http://www.mmds.org/).
 
 To allow for high-dimensional data, it stores the feature vectors as sparse matrices,
