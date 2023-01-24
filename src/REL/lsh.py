@@ -11,11 +11,7 @@ import numpy as np
 import logging 
 from sklearn.preprocessing import MultiLabelBinarizer
 import itertools
-import pdb 
 from scipy import sparse
-
-# TODO:
-    # document the class? -- after swapping the arguments 
 
 
 def k_shingle(s, k):
@@ -148,19 +144,15 @@ class LSHRandomProjections(LSHBase):
     """
     Class for locality-sensitive hashing with random projections.
     
-
     Parameters:
     -----------
-    mentions:
-    shingle_size:
-    signature_size:
-    band_length:
-    seed:     
+    mentions: list of strings.
+    shingle_size: length of the shingles to be constructed from each string in `mentions`.
+    n_bands, band_length: cut the hash signature into `n_bands` subsets of length `band_length`.
+    seed: random seed for np.random.default_rng
     """
-    # TODO: document more 
 
     def __init__(self, mentions, shingle_size, n_bands, band_length, seed=3):
-        # sparse_binary: should the sparse 0/1 matrix be stored with scipy sparse? takes less memory.
         super().__init__(mentions, shingle_size)
         self.n_bands = n_bands
         self.band_length = band_length 
