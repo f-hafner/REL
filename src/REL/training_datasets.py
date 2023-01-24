@@ -1,7 +1,7 @@
 import os
 import pickle
 import pdb 
-from REL.lsh import LSHMinHash
+from REL.lsh import LSHRandomProjections
 import logging
 
 class TrainingEvaluationDatasets:
@@ -131,7 +131,7 @@ class TrainingEvaluationDatasets:
             else:
                 if search_corefs_in == 'lsh':
                     input_mentions = [m["mention"] for m in content]
-                    lsh_corefs = LSHMinHash(mentions=input_mentions, shingle_size=2, signature_size=800, band_length=10) # TODO: set optimal parameters here 
+                    lsh_corefs = LSHRandomProjections(mentions=input_mentions, shingle_size=2, signature_size=800, band_length=10) # TODO: set optimal parameters here 
                     lsh_corefs.cluster()
                     assert len(content) == len(lsh_corefs.candidates)
                     # lsh_corefs.candidates are the input for below. indices refer to index in input_mentions

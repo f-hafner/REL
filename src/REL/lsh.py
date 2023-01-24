@@ -115,8 +115,20 @@ class LSHBase:
         self.vectors = binarizer.fit_transform(self.shingles)
 
 
-class LSHMinHash(LSHBase):
-    "LSH with MinHashing and numpy"
+class LSHRandomProjections(LSHBase):
+    """
+    A class for locality-sensitive hashing with random projections.
+    
+
+    Parameters:
+    -----------
+    mentions:
+    shingle_size:
+    signature_size:
+    band_length:
+    seed:     
+    """
+    # TODO: document more 
 
     def __init__(self, mentions, shingle_size, signature_size, band_length, seed=3):
         # sparse_binary: should the sparse 0/1 matrix be stored with scipy sparse? takes less memory.
