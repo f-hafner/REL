@@ -2,7 +2,6 @@ import os
 import pickle
 import pdb 
 from REL.lsh import LSHRandomProjections
-import logging
 
 class TrainingEvaluationDatasets:
     """
@@ -115,13 +114,21 @@ class TrainingEvaluationDatasets:
 
     def with_coref(self, dataset, search_corefs_in="all"): # TODO: need to update the calls to with_coref
         """
-        Check if there are coreferences in the given dataset. Use LSH for dimensionality reduction.
+        Check if there are coreferences in the given dataset, and replace
+        the candidate entity of a coreferring mention with the candidates from the main mention.
 
+        Example: If a document contains both "Jimi Hendrix" and "Hendrix" as a mention,
+        then the candidate entities of "Hendrix" will be replaced by the candidate
+        entities of "Jimi Hendrix". 
+
+        Parameters:
+        -----------
         search_corefs_in: either of 'lsh' or all 'all'. 
-        If 'all', search for coreferences among all mentions in document. This is what REL currently does by default.
-        If 'lsh', search for coreferences among a pre-selected set of candidates. The set is calculated with LSH.
+        If 'all', search for coreferences among all mentions in document
+        If 'lsh', search for coreferences among a pre-selected set of candidates. 
+        The set is calculated with LSH.
 
-        :return: dataset
+        :return: dataset with updated candidate entities and p(e|m) scores.
         """
         print(f"with_coref() is called with search_corefs_in={search_corefs_in}.")
         assert search_corefs_in in ['lsh', 'all']
@@ -131,7 +138,7 @@ class TrainingEvaluationDatasets:
             else:
                 if search_corefs_in == 'lsh':
                     input_mentions = [m["mention"] for m in content]
-                    # lsh_corefs = LSHRandomProjections(mentions=input_mentions, shingle_size=2, signature_size=800, band_length=10) # TODO: set optimal parameters here 
+                    # TODO: set optimal parameters here 
                     lsh_corefs = LSHRandomProjections(
                         mentions=input_mentions,
                         shingle_size=2,
