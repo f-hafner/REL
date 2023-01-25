@@ -13,7 +13,10 @@ from REL.training_datasets import TrainingEvaluationDatasets
 np.random.seed(seed=42)
 
 def profile_to_df(call):
-    "Helper function to profile a function call and save the timing in a pd df"
+    """Helper function to profile a function call and save the timing in a pd df.
+
+    Source: https://stackoverflow.com/questions/44302726/pandas-how-to-store-cprofile-output-in-a-pandas-dataframe
+    """
     cProfile.run(call, filename="temp.txt")
     st = pstats.Stats("temp.txt")
 

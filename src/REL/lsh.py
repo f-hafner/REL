@@ -1,12 +1,13 @@
 """Implement a simple version of locality-sensitive hashing.
 
-To deal with high-dimensional data (=many mentions), the clas stores the feature vectors
+To deal with high-dimensional data (=many mentions), the class stores the feature vectors
 as sparse matrices and uses random projections as hash functions. 
 
 See chapter 3 in "Mining of Massive Datasets" (http://www.mmds.org/).
 The time complexity is explained at the end of this video: https://www.youtube.com/watch?v=Arni-zkqMBA
-(number of hyperplanes = band length). 
-The video does not talk about amplification; see the book for this.
+(number of hyperplanes = band length).
+The use of multiple bands is called amplification, which is discussed in the book 
+but not in the video.
 """
 
 import itertools
@@ -17,7 +18,7 @@ from scipy import sparse
 from sklearn.preprocessing import MultiLabelBinarizer
 import time 
 
-# First, define a bunch of functions. TODO: should they be defined elsewhere? utils?
+# First, define a bunch of functions. TODO: should they be defined elsewhere? put in utils?
 
 def k_shingle(s, k):
     "Convert string s into shingles of length k."
@@ -35,8 +36,8 @@ def cols_to_int_multidim(a):
     Notes
     -----
     The advantage is that it uses vectorized numpy to collapse an
-    entire row into one integer. The disadvantage is that because one additional row increases 
-    the size of the integer at least by an order of magnitude, this only works for cases where 
+    entire row into one integer. The disadvantage is that one additional row increases 
+    the size of the integer at least by an order of magnitude, which only works for cases where 
     the bands are not too large. But in practice, optimal bands are typically not long enough 
     to cause problems.
 
@@ -49,9 +50,9 @@ def cols_to_int_multidim(a):
     existing_powers = np.floor(np.log10(a))
     n_bands, nrows, ncols = a.shape 
 
-    # cumsum_powers = np.fliplr(np.cumsum(np.fliplr(existing_powers), axis=1))
+    # sum existing powers from right to left
     cumsum_powers = np.flip(np.cumsum(np.flip(existing_powers, axis=2), axis=2), axis=2)
-
+     
     add_powers = [x for x in reversed(range(ncols))]
     add_powers = np.tile(add_powers, (nrows, 1))
 
@@ -88,9 +89,8 @@ def signature_to_3d_bands(a, n_bands, band_length):
     stacked_bands = a.reshape(n_items*n_bands, band_length) 
     # reorder so that the first band of all items comes first, then the second band of all items, etc.
     reordering_vector = np.arange(n_items*n_bands).reshape(n_items, n_bands).T.reshape(1, -1)
-
-    result = stacked_bands[reordering_vector, :].reshape(n_bands, n_items, band_length)
     
+    result = stacked_bands[reordering_vector, :].reshape(n_bands, n_items, band_length)
     return result 
 
 def group_unique_indices(a):
@@ -98,6 +98,7 @@ def group_unique_indices(a):
 
     In a 3-dimensional array, for each array (axis 0), 
     compute the indices of rows (axis=1) that are identical.
+    Based on 1d-version here: https://stackoverflow.com/questions/23268605/grouping-indices-of-unique-elements-in-numpy
 
     :param a: 3-dimensional array
     :type a: np.ndarray
@@ -141,7 +142,7 @@ class LSHBase:
     Methods
     -------
     encode_binary()
-        One-hot encode mentions, based on shingles 
+        One-hot encode mentions, based on shingles
     """
     # Important: order of occurences in shingles and vectors = order of input list (=order of occurrence in document)
     def __init__(self, mentions, shingle_size):
@@ -159,18 +160,19 @@ class LSHBase:
             self.shingles = [k_shingle(m, shingle_size) for m in mentions.values()]
         elif isinstance(mentions, list):
             self.shingles = [k_shingle(m, shingle_size) for m in mentions]
-        self._rep_items_not_show = ["shingles"]
+        self._rep_items_not_show = ["shingles"] # do not show in __repr__ b/c too long
 
     def __repr__(self):
         items_dict_show = {k: v for k, v in self.__dict__.items() 
                                 if k not in self._rep_items_not_show
-                                and k[0] != "_"
+                                and k[0] != "_" # omit private attributes
                             }
         items_dict_show = [f"{k}={v}" for k, v in items_dict_show.items()]
         return f"<{type(self).__name__}() with {', '.join(items_dict_show)}>"
 
     def _build_vocab(self):
-        "Make vocabulary of unique shingles in all mentions"
+        "Make vocabulary of unique shingles in all mentions."
+        logging.debug("making vocabulary from shingles")
         vocab = list(set([shingle for sublist in self.shingles for shingle in sublist]))
         self.vocab = vocab
 
@@ -241,7 +243,7 @@ class LSHRandomProjections(LSHBase):
         self.n_bands = n_bands
         if band_length is None:
             log_n_mentions = math.ceil(math.log(len(mentions))) # for O(log(N)) complexity
-            self.band_length = max(1, log_n_mentions)
+            self.band_length = max(1, log_n_mentions) # use 1 if exp(log(n_mentions)) < 1
         else:
             self.band_length = band_length
         self.signature_size = n_bands * self.band_length 
@@ -257,20 +259,20 @@ class LSHRandomProjections(LSHBase):
             self.rng.choice([-1, 1], (n_rows, n_cols))
         )
         products = self.vectors.dot(hyperplanes.transpose()).toarray()
-        sign = 1 + (products > 0)
+        sign = 1 + (products > 0) # need +1 for cols_to_int_multidim
         self.signature = sign
 
     def _all_candidates_to_all(self):
         """Assign all mentions as candidates to all other mentions. 
-        For edge cases where no single mention is longer than the shingle size
+        For edge cases where no single mention is longer than the shingle size.
         """
         n_mentions = self.vectors.shape[0]
         self.candidates = [set(range(n_mentions)) for _ in range(n_mentions)]
 
     def get_candidates(self):
-        """Extract most similar mentions from signature.
+        """Extract similar mentions from signature.
 
-        For each mention, extract most similar mentions based on whether part 
+        For each mention, extract similar mentions based on whether part 
         of their signatures overlap.
 
         :return: Index of mentions that are similar to each other.
@@ -278,7 +280,6 @@ class LSHRandomProjections(LSHBase):
         :rtype: list
         """
         logging.debug("getting candidates...")
-        # n_bands = int(self.signature_size / self.band_length)
         if self.vectors.shape[0] == 1:
             candidates = [set()]
             candidates[0].add(0)
@@ -307,17 +308,14 @@ class LSHRandomProjections(LSHBase):
         :rtype: list
         """
         start = time.time()
-        logging.debug("building vocabulary")
         self._build_vocab()
-        logging.debug("encoding to binary")
         self.encode_binary()
+
         logging.debug("making signature")
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
-            logging.debug('self.vectors.shape[1] is 0.')
             self._all_candidates_to_all()
         else:
             self.make_signature()
-            logging.debug("getting candidate groups")
             self.get_candidates()
         self.time = time.time() - start 
 
@@ -334,6 +332,6 @@ class LSHRandomProjections(LSHBase):
         and to assess whether number of comparisons is meaningfully reduced.
         """
         sizes = [len(g) for g in self.candidates]
-        runtime_all = len(self.candidates)*len(self.candidates)
-        runtime_lsh = len(self.candidates)*(sum(sizes)/len(sizes))
+        runtime_all = len(self.candidates) * len(self.candidates)
+        runtime_lsh = len(self.candidates) * (sum(sizes)/len(sizes))
         print(f"LSH makes fraction {round(runtime_lsh/runtime_all, 2)} of comparisons relative to option all.")
