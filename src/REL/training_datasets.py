@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 import math 
@@ -136,7 +137,7 @@ class TrainingEvaluationDatasets:
         :type search_corefs_in: string.
         :return: dataset with updated candidate entities and p(e|m) scores.
         """
-        print(f"with_coref() is called with search_corefs_in={search_corefs_in}.")
+        logging.info(f"with_coref() is called with search_corefs_in={search_corefs_in}.")
         assert search_corefs_in in ['lsh', 'all']
         for data_name, content in dataset.items():
             if len(content) == 0:
