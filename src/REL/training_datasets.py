@@ -2,6 +2,7 @@ import os
 import pickle
 from REL.lsh import LSHRandomProjections
 import math 
+import pdb 
 
 class TrainingEvaluationDatasets:
     """
@@ -145,6 +146,7 @@ class TrainingEvaluationDatasets:
                         n_bands=15, # best recall: 400. acceptable: 200. 
                         band_length=band_length # best recall: 15. acceptable: 15
                     )
+                    pdb.set_trace()
                     lsh_corefs.cluster()
                     assert len(content) == len(lsh_corefs.candidates)
                     # lsh_corefs.candidates are the input for below. indices refer to index in input_mentions

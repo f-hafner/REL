@@ -17,6 +17,7 @@ import itertools
 from scipy import sparse
 import math 
 
+# First, define a bunch of functions. TODO: should they be defined elsewhere? utils?
 
 def k_shingle(s, k):
     """
@@ -84,7 +85,6 @@ def signature_to_3d_bands(a, n_bands, band_length):
     
     return result 
 
-# this replaces idx_multidim
 def group_unique_indices(a):
     """
     In a 3-dimensional array, for each array (axis 0), 
@@ -113,6 +113,8 @@ def group_unique_indices(a):
 
     return unq_idx
 
+# ## Here follow the classes
+
 class LSHBase:
     """
     Base class for locality-sensitive hashing, 
@@ -124,6 +126,10 @@ class LSHBase:
             self.shingles = [k_shingle(m, shingle_size) for m in mentions.values()]
         elif isinstance(mentions, list):
             self.shingles = [k_shingle(m, shingle_size) for m in mentions]
+
+    def __repr__(self):
+        #return f"{type(self).__name__}({self.shingles})"
+        pass 
 
     def _build_vocab(self):
         """
@@ -150,7 +156,7 @@ class LSHRandomProjections(LSHBase):
     
     Parameters:
     -----------
-    mentions: list of strings (mentions).
+    mentions: list or dict of mentions.
 
     shingle_size: length of the shingles to be constructed from each string in `mentions`.
 
@@ -251,8 +257,7 @@ class LSHRandomProjections(LSHBase):
     def efficiency_gain_comparisons(self):
         """
         Compare number of comparisons made for coreference search with option "lsh" and option "all".
-        Useful for understanding time complexity. 
-        And to assess whether number of comparisons is meaningfully reduced
+        Useful for understanding time complexity, and to assess whether number of comparisons is meaningfully reduced
         """
         sizes = [len(g) for g in self.candidates]
         runtime_all = len(self.candidates)*len(self.candidates)
