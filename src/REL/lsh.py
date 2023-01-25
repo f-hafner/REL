@@ -122,14 +122,20 @@ class LSHBase:
     """
     # Important: order of occurences in shingles and vectors = order of input list (=order of occurrence in document)
     def __init__(self, mentions, shingle_size):
+        self.shingle_size = shingle_size
         if isinstance(mentions, dict):
             self.shingles = [k_shingle(m, shingle_size) for m in mentions.values()]
         elif isinstance(mentions, list):
             self.shingles = [k_shingle(m, shingle_size) for m in mentions]
+        self._rep_items_not_show = ["shingles"]
 
     def __repr__(self):
-        #return f"{type(self).__name__}({self.shingles})"
-        pass 
+        items_dict_show = {k: v for k, v in self.__dict__.items() 
+                                if k not in self._rep_items_not_show
+                                and k[0] != "_"
+                            }
+        items_dict_show = [f"{k}={v}" for k, v in items_dict_show.items()]
+        return f"<{type(self).__name__}() with {', '.join(items_dict_show)}>"
 
     def _build_vocab(self):
         """
@@ -170,13 +176,15 @@ class LSHRandomProjections(LSHBase):
 
     def __init__(self, mentions, shingle_size, n_bands, band_length=None, seed=3):
         super().__init__(mentions, shingle_size)
+        self.seed = seed
         self.n_bands = n_bands
         if band_length is None:
             self.band_length = math.ceil(math.log(len(mentions))) # for O(log(N)) complexity
         else:
             self.band_length = band_length
         self.signature_size = n_bands * band_length 
-        self.rng = np.random.default_rng(seed=seed)
+        self.rng = np.random.default_rng(seed=self.seed)
+        self._rep_items_not_show.extend(["signature_size", "rng"])
     
     def make_signature(self):
         """
