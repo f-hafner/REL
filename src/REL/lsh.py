@@ -1,30 +1,26 @@
-"""
-Implement a simple version of locality-sensitive hashing.
-The main reference is chapter 3 in "Mining of Massive Datasets" (http://www.mmds.org/).
-The time complexity is explained at the end of this video: https://www.youtube.com/watch?v=Arni-zkqMBA
-(number of hyperplanes = band length). 
-The video does not talk about amplification; see the book for this.
+"""Implement a simple version of locality-sensitive hashing.
 
 To deal with high-dimensional data (=many mentions), the clas stores the feature vectors
 as sparse matrices and uses random projections as hash functions. 
+
+See chapter 3 in "Mining of Massive Datasets" (http://www.mmds.org/).
+The time complexity is explained at the end of this video: https://www.youtube.com/watch?v=Arni-zkqMBA
+(number of hyperplanes = band length). 
+The video does not talk about amplification; see the book for this.
 """
 
-import time 
-import numpy as np 
-import logging 
-from sklearn.preprocessing import MultiLabelBinarizer
 import itertools
-from scipy import sparse
+import logging 
 import math 
+import numpy as np 
+from scipy import sparse
+from sklearn.preprocessing import MultiLabelBinarizer
+import time 
 
 # First, define a bunch of functions. TODO: should they be defined elsewhere? utils?
 
 def k_shingle(s, k):
-    """
-    Convert string s into shingles of length k
-
-    :return: List of shingles
-    """
+    "Convert string s into shingles of length k"
     shingle = []
     for i in range(len(s) - k + 1):
         shingle.append(s[i:(i+k)])
@@ -32,19 +28,22 @@ def k_shingle(s, k):
 
 
 def cols_to_int_multidim(a):
-    """
-    Combine columns in all rows to an integer: [[1,20,3], [1,4,10]] becomes [1203,1410].
-
-    :return: An array of shape (n, 1), where the horizontally neighboring column values 
-    are appended together.
+    """Combine columns in all rows to an integer
+    
+    For instance, [[1,20,3], [1,4,10]] becomes [1203,1410].
 
     Notes
-    ------
-    Advantage: uses vectorized numpy to create a unique signature.
-    Disadvantage: Because one additional row increases the size of the integer at least by an order of magnitude, 
-    this only works for cases where the bands are not too large. 
+    -----
+    The addvantage is that uses vectorized numpy to create a unique signature.
+    The disadvantage is that because one additional row increases the size of the integer at least 
+    by an order of magnitude, this only works for cases where the bands are not too large. 
+    But in practice, optimal bands are typically not long enough to cause problems.
 
-    In practice, optimal bands are typically not long enough to cause problems.
+    :param a: 2-dimensional array
+    :type a: np.ndarray
+    :returns: An array of shape (n, 1), where the horizontally neighboring column values 
+    are appended together.
+    :rtype: np.ndarray
     """
     existing_powers = np.floor(np.log10(a))
     n_bands, nrows, ncols = a.shape 
@@ -61,18 +60,26 @@ def cols_to_int_multidim(a):
     return out 
 
 def signature_to_3d_bands(a, n_bands, band_length):
-    """ 
+    """Convert a signature from 2d to 3d
+
     Convert a signature array of dimension (n_items, signature_length) into an array 
     of (n_bands, n_items, band_length).
 
-    :return: An array of shape (n_bands, n_items, band_length)
-    
-    Details:
-    --------
+    Notes
+    -----
     This produces the same output as np.vstack(np.split(a, indices_or_sections=n_bands, axis=1)).
     When further processing the output, this is a useful alternative to looping on the output of
     np.split(a, indices_or_sections=n_bands, axis=1) because a single vectorized call can be used,
     while np.vstack(np.split(...)) is likely to be less efficient. 
+
+    :param a: Array with 2 dimensions
+    :type a: np.ndarray 
+    :param n_bands: Number of bands the columns to cut into
+    :type n_bands: int 
+    :param band_length: Length of each band 
+    :type band_length: int
+    :returns: Array of shape (n_bands, n_items, band_length)
+    :rtype: np.ndarray
     """
     n_items, signature_length = a.shape
     
@@ -86,14 +93,18 @@ def signature_to_3d_bands(a, n_bands, band_length):
     return result 
 
 def group_unique_indices(a):
-    """
-    In a 3-dimensional array, for each array (axis 0), 
-    calculate the indices of rows (axis=1) that are identical.
+    """Compute indices of matching rows
 
-    :return: a list of lists. Outer lists correspond to bands. 
-    Inner lists correspond to the row indices that 
-    have the same values in their columns. An item 
-    in the inner list is an np.array.
+    In a 3-dimensional array, for each array (axis 0), 
+    compute the indices of rows (axis=1) that are identical.
+
+    :param a: 3-dimensional array
+    :type a: np.ndarray
+    :returns: List of lists. Outer lists correspond to bands. 
+        Inner lists correspond to the row indices that 
+        have the same values in their columns. An item 
+        in the inner list is an np.array.
+    :rtype: list
     """
     n_bands, n_items, length_band = a.shape
     a = cols_to_int_multidim(a).squeeze()
@@ -117,11 +128,31 @@ def group_unique_indices(a):
 
 class LSHBase:
     """
-    Base class for locality-sensitive hashing, 
-    with methods for one-hot encoding and building a vocabulary of shingles
+    Base class for locality-sensitive hashing.
+
+    Attributes
+    ----------
+    shingle_size
+        Size of shingles to be created from mentions
+    mentions
+        Mentions in which to search for similar items
+
+    Methods
+    -------
+    encode_binary()
+        One-hot encode mentions, based on shingles 
     """
     # Important: order of occurences in shingles and vectors = order of input list (=order of occurrence in document)
     def __init__(self, mentions, shingle_size):
+        """
+
+        Parameters
+        ----------
+        :param mentions: Mentions in which to search for similar items
+        :type mentions: list or dict
+        :param shingle_size: Length of substrings to be created from mentions ("shingles")
+        :type shingle_size: int
+        """
         self.shingle_size = shingle_size
         if isinstance(mentions, dict):
             self.shingles = [k_shingle(m, shingle_size) for m in mentions.values()]
@@ -138,18 +169,17 @@ class LSHBase:
         return f"<{type(self).__name__}() with {', '.join(items_dict_show)}>"
 
     def _build_vocab(self):
-        """
-        Build a vocabulary of the shingles in a document.
-        """
+        "Make vocabulary of unique shingles in all mentions"
         vocab = list(set([shingle for sublist in self.shingles for shingle in sublist]))
         self.vocab = vocab
 
     def encode_binary(self): 
-        """
-        Create sparse binary vectors for each mention.
+        """Create sparse binary vectors for each mention.
 
-        :return: CSR sparse matrix. Rows indicate mentions, columns indicate whether 
-        the mention contains the shingle. 
+        :return: Indicator matrix. 
+            Rows indicate mentions, columns indicate whether 
+            the mention contains the shingle. 
+        :rtype: scipy.sparse.csr_matrix
         """
         logging.debug("making one-hot vectors")
         binarizer = MultiLabelBinarizer(sparse_output=True)
@@ -160,21 +190,52 @@ class LSHRandomProjections(LSHBase):
     """
     Class for locality-sensitive hashing with random projections.
     
-    Parameters:
+    Attributes
     -----------
-    mentions: list or dict of mentions.
-
-    shingle_size: length of the shingles to be constructed from each string in `mentions`.
-
-    n_bands, band_length: the signature of a mention will be n_bands*band_length.
+    mentions
+        List or dict of mentions
+    shingle_size
+        Length of the shingles to be constructed from each string in `mentions`
+    n_bands, band_length
+        The signature of a mention will be n_bands*band_length.
         Longer bands increase precision, more bands increase recall. 
         If band_length is `None`, it is set as log(len(mentions)), which 
         will guarantee O(log(N)) time complexity.
+    seed
+        random seed for np.random.default_rng
 
-    seed: random seed for np.random.default_rng
+    Methods
+    --------
+    make_signature()
+        Create a dense signature vector with random projections.
+    get_candidates()
+        Find groups of mentions overlapping signatures.
+    cluster()
+        End-to-end hashing from shingles to clusters.
+        This is the main functionality of the class.
+    summarise()
+        Summarise time and output of cluster()
+    efficiency_gain_comparisons()
+        Compare number of computations for coreference search with hashing 
+        and without hashing
     """
 
     def __init__(self, mentions, shingle_size, n_bands, band_length=None, seed=3):
+        """
+
+        Parameters
+        ----------
+        :param mentions: Mentions in which to search for similar items
+        :type mentions: list or dict
+        :param shingle_size: Length of substrings to be created from mentions ("shingles")
+        :type shingle_size: int
+        :param n_bands: Number of signature bands (equal-sized cuts of the full signature)
+        :type n_bands: int
+        :param band_length: Length of bands
+        :type band_length: int or None 
+        :seed: Random seed for random number generator from numpy
+        :type seed: int
+        """
         super().__init__(mentions, shingle_size)
         self.seed = seed
         self.n_bands = n_bands
@@ -187,33 +248,35 @@ class LSHRandomProjections(LSHBase):
         self._rep_items_not_show.extend(["signature_size", "rng"])
     
     def make_signature(self):
-        """
-        Create a signature for a given mention, using random projections.
-        """
+        "Create a matrix of signatures with random projections"
         logging.debug(f"Making signature. vectors shape is {self.vectors.shape}")
         # TODO: can this be more memory-efficient by generating directly the scipy sparse function? 
         # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.random.html
-        hyperplanes = self.rng.choice([-1, 1], (self.signature_size, self.vectors.shape[1]))
-        hyperplanes = sparse.csr_matrix(hyperplanes)
+        n_rows = self.signature_size
+        n_cols = self.vectors.shape[1]
+        hyperplanes = sparse.csr_matrix(
+            self.rng.choice([-1, 1], (n_rows, n_cols))
+        )
         products = self.vectors.dot(hyperplanes.transpose()).toarray()
         sign = 1 + (products > 0)
         self.signature = sign
 
-    def all_candidates_to_all(self):
-        """
-        Fall-back option to return the non-clustered input.
-        Each mention is a candidate coreference for all mentions. This is useful in 
-        edge cases where no single mention is longer than the shingle size.
+    def _all_candidates_to_all(self):
+        """Assign all mentions as candidates to all other mentions. 
+        For edge cases where no single mention is longer than the shingle size
         """
         n_mentions = self.vectors.shape[0]
         self.candidates = [set(range(n_mentions)) for _ in range(n_mentions)]
 
     def get_candidates(self):
-        """
+        """Extract most similar mentions from signature
+
         For each mention, extract most similar mentions based on whether part 
         of their signatures overlap.
 
-        :return: list of sets of candidate indices.
+        :return: Index of mentions that are similar to each other.
+            A list of the candidate set of similar mentions.
+        :rtype: list
         """
         logging.debug("getting candidates...")
         # n_bands = int(self.signature_size / self.band_length)
@@ -236,10 +299,13 @@ class LSHRandomProjections(LSHBase):
         self.candidates = candidates
 
     def cluster(self): 
-        """
-        Main functionality of this class: cluster mentions together based on their similarity. 
+        """End-to-end locality-sensitive hashing
 
-        :return: for each mention, mention index of most similar other mentions based on LSH.
+        Cluster mentions together based on their similarity. 
+
+        :return: Index of mentions that are similar to each other.
+            A list of the candidate set of similar mentions.
+        :rtype: list
         """
         start = time.time()
         logging.debug("building vocabulary")
@@ -249,7 +315,7 @@ class LSHRandomProjections(LSHBase):
         logging.debug("making signature")
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
             logging.debug('self.vectors.shape[1] is 0.')
-            self.all_candidates_to_all()
+            self._all_candidates_to_all()
         else:
             self.make_signature()
             logging.debug("getting candidate groups")

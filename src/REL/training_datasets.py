@@ -1,7 +1,8 @@
 import os
 import pickle
-from REL.lsh import LSHRandomProjections
 import math 
+
+from REL.lsh import LSHRandomProjections
 
 class TrainingEvaluationDatasets:
     """
