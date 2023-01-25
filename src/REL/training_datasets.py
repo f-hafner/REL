@@ -147,9 +147,9 @@ class TrainingEvaluationDatasets:
                     band_length = math.ceil(math.log(len(input_mentions)))
                     lsh_corefs = LSHRandomProjections(
                         mentions=input_mentions,
-                        shingle_size=2, # best recall: 2. acceptable: 2
-                        n_bands=15, # best recall: 400. acceptable: 200. 
-                        band_length=band_length # best recall: 15. acceptable: 15
+                        shingle_size=2, 
+                        n_bands=15,  
+                        band_length=band_length 
                     )
                     lsh_corefs.cluster()
                     assert len(content) == len(lsh_corefs.candidates)

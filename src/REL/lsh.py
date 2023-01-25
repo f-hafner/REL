@@ -14,9 +14,10 @@ import itertools
 import logging 
 import math 
 import numpy as np 
+import time 
+
 from scipy import sparse
 from sklearn.preprocessing import MultiLabelBinarizer
-import time 
 
 # First, define a bunch of functions. TODO: should they be defined elsewhere? put in utils?
 
@@ -89,7 +90,7 @@ def signature_to_3d_bands(a, n_bands, band_length):
     stacked_bands = a.reshape(n_items*n_bands, band_length) 
     # reorder so that the first band of all items comes first, then the second band of all items, etc.
     reordering_vector = np.arange(n_items*n_bands).reshape(n_items, n_bands).T.reshape(1, -1)
-    
+
     result = stacked_bands[reordering_vector, :].reshape(n_bands, n_items, band_length)
     return result 
 
@@ -144,7 +145,7 @@ class LSHBase:
     encode_binary()
         One-hot encode mentions, based on shingles
     """
-    # Important: order of occurences in shingles and vectors = order of input list (=order of occurrence in document)
+    
     def __init__(self, mentions, shingle_size):
         """
 
@@ -311,7 +312,6 @@ class LSHRandomProjections(LSHBase):
         self._build_vocab()
         self.encode_binary()
 
-        logging.debug("making signature")
         if self.vectors.shape[1] == 0: # no signature possible b/c no mention is longer than the shingle size.
             self._all_candidates_to_all()
         else:
@@ -334,4 +334,4 @@ class LSHRandomProjections(LSHBase):
         sizes = [len(g) for g in self.candidates]
         runtime_all = len(self.candidates) * len(self.candidates)
         runtime_lsh = len(self.candidates) * (sum(sizes)/len(sizes))
-        print(f"LSH makes fraction {round(runtime_lsh/runtime_all, 2)} of comparisons relative to option all.")
+        print(f"option 'lsh' makes fraction {round(runtime_lsh/runtime_all, 2)} of comparisons relative to option 'all'.")

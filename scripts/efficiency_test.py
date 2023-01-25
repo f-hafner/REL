@@ -80,7 +80,19 @@ print(f"args.search_corefs is {args.search_corefs}")
 base_url = "/home/flavio/projects/rel20/data"
 wiki_version = "wiki_2019"
 datasets = TrainingEvaluationDatasets(base_url, wiki_version, args.search_corefs).load()[args.name_dataset] 
-save_data_to = f"{base_url}/efficiency_test/" # save all recorded data in this directory 
+
+# create directories where to save the output from the tests
+dir_efficiency_test = os.path.join(base_url, "efficiency_test")
+sub_directories = {
+    "profile": "profile",
+    "predictions": "predictions",
+    "n_mentions_time": "n_mentions_time"
+}
+sub_directories = {k: os.path.join(dir_efficiency_test, v) for k, v in sub_directories.items()}
+
+for d in sub_directories.values():
+    if not os.path.exists(d):
+        os.makedirs(d)
 
 
 server = False
@@ -159,7 +171,8 @@ if not server:
         "timing": timing
     }
     
-    filename = f"{save_data_to}predictions/{args.name_dataset}_{args.n_docs}_{args.search_corefs}"
+    iteration_identifier = f"{args.name_dataset}_{args.n_docs}_{args.search_corefs}"
+    filename = os.path.join(sub_directories["predictions"], iteration_identifier)
 
     with open(f"{filename}.pickle", "wb") as f:
         pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)        
@@ -167,7 +180,7 @@ if not server:
     # ## 4.b Profile the disambiguation part 
     if args.profile:
         print("Profiling disambiguation")
-        filename = f"{save_data_to}profile/{args.name_dataset}_{args.n_docs}_{args.search_corefs}"
+        filename = os.path.join(sub_directories["profile"], iteration_identifier)
 
         df_stats = profile_to_df(call="model.predict(mentions_dataset)")
         df_stats.to_csv(f"{filename}.csv", index=False)
@@ -205,7 +218,7 @@ if not server:
                 timing_by_dataset[name]['profile'] = df_profile
         
         # save timing by dataset
-        filename = f"{save_data_to}n_mentions_time/{args.name_dataset}_{args.search_corefs}"
+        filename = os.path.join(sub_directories["n_mentions_time"], f"{args.name_dataset}_{args.search_corefs}" )
 
         with open(f"{filename}.pickle", "wb") as f:
             pickle.dump(timing_by_dataset, f, protocol=pickle.HIGHEST_PROTOCOL)
