@@ -1,15 +1,38 @@
-import numpy as np
 import requests
 import argparse
 import pickle
 import logging 
+import cProfile 
+import pandas as pd 
+import pstats 
+import os 
 
 from REL.training_datasets import TrainingEvaluationDatasets
 
-np.random.seed(seed=42)
+def profile_to_df(call):
+    "Helper function to profile a function call and save the timing in a pd df"
+    cProfile.run(call, filename="temp.txt")
+    st = pstats.Stats("temp.txt")
+
+    keys_from_k = ['file', 'line', 'fn']
+    keys_from_v = ['cc', 'ncalls', 'tottime', 'cumtime', 'callers']
+    data = {k: [] for k in keys_from_k + keys_from_v}
+
+    s = st.stats
+
+    for k in s.keys():
+        for i, kk in enumerate(keys_from_k):
+            data[kk].append(k[i])
+
+        for i, kk in enumerate(keys_from_v):
+            data[kk].append(s[k][i])
+
+    df = pd.DataFrame(data)
+    os.remove('temp.txt')
+    return df
+
 
 parser = argparse.ArgumentParser()
-
 parser.add_argument(
     '--search_corefs',
     type=str,
@@ -44,44 +67,14 @@ parser.add_argument(
 )
 logging.basicConfig(level=logging.INFO) # do not print to file 
 
-
-# helper function to profile a call and save the timing in a pd dataframe 
-def profile_to_df(call):
-    cProfile.run(call, filename="temp.txt")
-    st = pstats.Stats("temp.txt")
-
-    keys_from_k = ['file', 'line', 'fn']
-    keys_from_v = ['cc', 'ncalls', 'tottime', 'cumtime', 'callers']
-    data = {k: [] for k in keys_from_k + keys_from_v}
-
-    s = st.stats
-
-    for k in s.keys():
-        for i, kk in enumerate(keys_from_k):
-            data[kk].append(k[i])
-
-        for i, kk in enumerate(keys_from_v):
-            data[kk].append(s[k][i])
-
-    df = pd.DataFrame(data)
-    os.remove('temp.txt')
-    return df
-
-
 args = parser.parse_args()
 print(f"args.search_corefs is {args.search_corefs}")
-
-if args.profile:
-    import cProfile 
-    import pandas as pd 
-    import pstats 
-    import os 
 
 
 base_url = "/home/flavio/projects/rel20/data"
 wiki_version = "wiki_2019"
 datasets = TrainingEvaluationDatasets(base_url, wiki_version, args.search_corefs).load()[args.name_dataset] 
-save_data_to = f"{base_url}/efficiency_test/" # save all recorded in this directory 
+save_data_to = f"{base_url}/efficiency_test/" # save all recorded data in this directory 
 
 
 server = False
