@@ -4,7 +4,6 @@
 from pathlib import Path
 
 import REL.lsh as lsh 
-# from REL.lsh import vectorize_signature_bands, group_unique_indices, cols_to_int_multidim
 import numpy as np
 import itertools 
 
@@ -43,9 +42,7 @@ def test_signature_to_3d_bands():
     result = lsh.signature_to_3d_bands(a, n_bands=n_bands, band_length=band_length)
 
     expected = np.vstack(np.split(a, n_bands, axis=1)).reshape(n_bands, n_items, -1)
-    assert np.all(result == expected), "signature bands not vectorized correctly"
-
-
+    assert np.all(result == expected), "signature not correctly converted to 3d bands"
 
 def test_group_unique_indices():
     a = np.array([[[1, 4], [1, 4], [5,3], [5, 3], [1 , 2]],
@@ -69,3 +66,14 @@ def test_group_unique_indices():
     # test 
     assert all([np.all(i==j) for i, j in zip(o, e)]), "unique indices not grouped correctly"
 
+def test_cluster_short_mentions():
+    mentions = ['EEC', 'ABC']
+    max_length = max([len(m) for m in mentions])
+    mylsh = lsh.LSHRandomProjections(
+        mentions=mentions, 
+        shingle_size=max_length + 1, 
+        n_bands=15)
+    mylsh.cluster()
+    expected = [set((0, 1)), set((0, 1))]
+    assert expected == mylsh.candidates, \
+        "lsh fails when shingle size longer than longest input mentions"

@@ -113,22 +113,27 @@ class TrainingEvaluationDatasets:
 
         return coref
 
-    def with_coref(self, dataset, search_corefs_in="all"): # TODO: need to update the calls to with_coref
-        """
-        Check if there are coreferences in the given dataset, and replace
-        the candidate entity of a coreferring mention with the candidates from the main mention.
+    def with_coref(self, dataset, search_corefs_in="all"): 
+        """Replace candidates of coreferring mentions with main mention.
 
-        Example: If a document contains both "Jimi Hendrix" and "Hendrix" as a mention,
+        Check if there are coreferences in the given dataset, and replace
+        the candidate entity of a coreferring mention with the candidates 
+        from the main mention.
+
+        Example
+        -------
+        If a document contains both "Jimi Hendrix" and "Hendrix" as a mention,
         then the candidate entities of "Hendrix" will be replaced by the candidate
         entities of "Jimi Hendrix". 
 
         Parameters:
         -----------
-        search_corefs_in: either of 'lsh' or all 'all'. 
-        If 'all', search for coreferences among all mentions in document
-        If 'lsh', search for coreferences among a pre-selected set of candidates. 
-        The set is calculated with LSH.
-
+        :param search_corefs_in: in which set to search for coreferences.
+            Either of "lsh" or "all".
+            If 'all', search for coreferences among all mentions in document
+            If 'lsh', search for coreferences among a pre-selected set of candidates. 
+            The set is calculated with LSH.
+        :type search_corefs_in: string.
         :return: dataset with updated candidate entities and p(e|m) scores.
         """
         print(f"with_coref() is called with search_corefs_in={search_corefs_in}.")

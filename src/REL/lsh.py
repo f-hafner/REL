@@ -20,7 +20,7 @@ import time
 # First, define a bunch of functions. TODO: should they be defined elsewhere? utils?
 
 def k_shingle(s, k):
-    "Convert string s into shingles of length k"
+    "Convert string s into shingles of length k."
     shingle = []
     for i in range(len(s) - k + 1):
         shingle.append(s[i:(i+k)])
@@ -28,16 +28,17 @@ def k_shingle(s, k):
 
 
 def cols_to_int_multidim(a):
-    """Combine columns in all rows to an integer
+    """Combine columns in all rows to an integer.
     
     For instance, [[1,20,3], [1,4,10]] becomes [1203,1410].
 
     Notes
     -----
-    The addvantage is that uses vectorized numpy to create a unique signature.
-    The disadvantage is that because one additional row increases the size of the integer at least 
-    by an order of magnitude, this only works for cases where the bands are not too large. 
-    But in practice, optimal bands are typically not long enough to cause problems.
+    The advantage is that it uses vectorized numpy to collapse an
+    entire row into one integer. The disadvantage is that because one additional row increases 
+    the size of the integer at least by an order of magnitude, this only works for cases where 
+    the bands are not too large. But in practice, optimal bands are typically not long enough 
+    to cause problems.
 
     :param a: 2-dimensional array
     :type a: np.ndarray
@@ -60,7 +61,7 @@ def cols_to_int_multidim(a):
     return out 
 
 def signature_to_3d_bands(a, n_bands, band_length):
-    """Convert a signature from 2d to 3d
+    """Convert a signature from 2d to 3d.
 
     Convert a signature array of dimension (n_items, signature_length) into an array 
     of (n_bands, n_items, band_length).
@@ -93,7 +94,7 @@ def signature_to_3d_bands(a, n_bands, band_length):
     return result 
 
 def group_unique_indices(a):
-    """Compute indices of matching rows
+    """Compute indices of matching rows.
 
     In a 3-dimensional array, for each array (axis 0), 
     compute the indices of rows (axis=1) that are identical.
@@ -187,8 +188,7 @@ class LSHBase:
 
 
 class LSHRandomProjections(LSHBase):
-    """
-    Class for locality-sensitive hashing with random projections.
+    """Class for locality-sensitive hashing with random projections.
     
     Attributes
     -----------
@@ -202,7 +202,7 @@ class LSHRandomProjections(LSHBase):
         If band_length is `None`, it is set as log(len(mentions)), which 
         will guarantee O(log(N)) time complexity.
     seed
-        random seed for np.random.default_rng
+        Random seed for np.random.default_rng
 
     Methods
     --------
@@ -217,7 +217,7 @@ class LSHRandomProjections(LSHBase):
         Summarise time and output of cluster()
     efficiency_gain_comparisons()
         Compare number of computations for coreference search with hashing 
-        and without hashing
+        and without hashing.
     """
 
     def __init__(self, mentions, shingle_size, n_bands, band_length=None, seed=3):
@@ -240,18 +240,17 @@ class LSHRandomProjections(LSHBase):
         self.seed = seed
         self.n_bands = n_bands
         if band_length is None:
-            self.band_length = math.ceil(math.log(len(mentions))) # for O(log(N)) complexity
+            log_n_mentions = math.ceil(math.log(len(mentions))) # for O(log(N)) complexity
+            self.band_length = max(1, log_n_mentions)
         else:
             self.band_length = band_length
-        self.signature_size = n_bands * band_length 
+        self.signature_size = n_bands * self.band_length 
         self.rng = np.random.default_rng(seed=self.seed)
         self._rep_items_not_show.extend(["signature_size", "rng"])
     
     def make_signature(self):
-        "Create a matrix of signatures with random projections"
+        "Create a matrix of signatures with random projections."
         logging.debug(f"Making signature. vectors shape is {self.vectors.shape}")
-        # TODO: can this be more memory-efficient by generating directly the scipy sparse function? 
-        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.random.html
         n_rows = self.signature_size
         n_cols = self.vectors.shape[1]
         hyperplanes = sparse.csr_matrix(
@@ -269,7 +268,7 @@ class LSHRandomProjections(LSHBase):
         self.candidates = [set(range(n_mentions)) for _ in range(n_mentions)]
 
     def get_candidates(self):
-        """Extract most similar mentions from signature
+        """Extract most similar mentions from signature.
 
         For each mention, extract most similar mentions based on whether part 
         of their signatures overlap.
@@ -299,7 +298,7 @@ class LSHRandomProjections(LSHBase):
         self.candidates = candidates
 
     def cluster(self): 
-        """End-to-end locality-sensitive hashing
+        """End-to-end locality-sensitive hashing.
 
         Cluster mentions together based on their similarity. 
 
@@ -330,8 +329,9 @@ class LSHRandomProjections(LSHBase):
 
     def efficiency_gain_comparisons(self):
         """
-        Compare number of comparisons made for coreference search with option "lsh" and option "all".
-        Useful for understanding time complexity, and to assess whether number of comparisons is meaningfully reduced
+        Compare number of comparisons made for coreference search with option 
+        "lsh" and option "all". Useful for understanding time complexity, 
+        and to assess whether number of comparisons is meaningfully reduced.
         """
         sizes = [len(g) for g in self.candidates]
         runtime_all = len(self.candidates)*len(self.candidates)

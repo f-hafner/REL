@@ -1,13 +1,16 @@
-import requests
 import argparse
-import pickle
-import logging 
 import cProfile 
+import logging 
+import numpy as np 
+import os 
+import pickle
 import pandas as pd 
 import pstats 
-import os 
+import requests
 
 from REL.training_datasets import TrainingEvaluationDatasets
+
+np.random.seed(seed=42)
 
 def profile_to_df(call):
     "Helper function to profile a function call and save the timing in a pd df"
