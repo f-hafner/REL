@@ -1,9 +1,12 @@
 """
 Implement a simple version of locality-sensitive hashing.
 The main reference is chapter 3 in "Mining of Massive Datasets" (http://www.mmds.org/).
+The time complexity is explained at the end of this video: https://www.youtube.com/watch?v=Arni-zkqMBA
+(number of hyperplanes = band length). 
+The video does not talk about amplification; see the book for this.
 
-To allow for high-dimensional data, it stores the feature vectors as sparse matrices,
-and uses random projections as hash functions. 
+To deal with high-dimensional data (=many mentions), the clas stores the feature vectors
+as sparse matrices and uses random projections as hash functions. 
 """
 
 import time 
@@ -12,6 +15,7 @@ import logging
 from sklearn.preprocessing import MultiLabelBinarizer
 import itertools
 from scipy import sparse
+import math 
 
 
 def k_shingle(s, k):
@@ -146,16 +150,25 @@ class LSHRandomProjections(LSHBase):
     
     Parameters:
     -----------
-    mentions: list of strings.
+    mentions: list of strings (mentions).
+
     shingle_size: length of the shingles to be constructed from each string in `mentions`.
-    n_bands, band_length: cut the hash signature into `n_bands` subsets of length `band_length`.
+
+    n_bands, band_length: the signature of a mention will be n_bands*band_length.
+        Longer bands increase precision, more bands increase recall. 
+        If band_length is `None`, it is set as log(len(mentions)), which 
+        will guarantee O(log(N)) time complexity.
+
     seed: random seed for np.random.default_rng
     """
 
-    def __init__(self, mentions, shingle_size, n_bands, band_length, seed=3):
+    def __init__(self, mentions, shingle_size, n_bands, band_length=None, seed=3):
         super().__init__(mentions, shingle_size)
         self.n_bands = n_bands
-        self.band_length = band_length 
+        if band_length is None:
+            self.band_length = math.ceil(math.log(len(mentions))) # for O(log(N)) complexity
+        else:
+            self.band_length = band_length
         self.signature_size = n_bands * band_length 
         self.rng = np.random.default_rng(seed=seed)
     
