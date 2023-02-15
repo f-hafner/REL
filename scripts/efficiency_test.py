@@ -40,6 +40,12 @@ def profile_to_df(call):
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
+    "--url",
+    dest="base_url",
+    type=str,
+    help="path to input and output data"
+)
+parser.add_argument(
     '--search_corefs',
     type=str,
     choices=['all', 'lsh', 'off'],
@@ -77,12 +83,12 @@ args = parser.parse_args()
 print(f"args.search_corefs is {args.search_corefs}")
 
 
-base_url = "/home/flavio/projects/rel20/data"
+# base_url = "/home/flavio/projects/rel20/data"
 wiki_version = "wiki_2019"
-datasets = TrainingEvaluationDatasets(base_url, wiki_version, args.search_corefs).load()[args.name_dataset] 
+datasets = TrainingEvaluationDatasets(args.base_url, wiki_version, args.search_corefs).load()[args.name_dataset] 
 
 # create directories where to save the output from the tests
-dir_efficiency_test = os.path.join(base_url, "efficiency_test")
+dir_efficiency_test = os.path.join(args.base_url, "efficiency_test")
 sub_directories = {
     "profile": "profile",
     "predictions": "predictions",
@@ -144,7 +150,7 @@ if not server:
 
     flair.device = torch.device("cpu")
 
-    mention_detection = MentionDetection(base_url, wiki_version)
+    mention_detection = MentionDetection(args.base_url, wiki_version)
 
     # Alternatively use Flair NER tagger.
     tagger_ner = SequenceTagger.load("ner-fast")
@@ -156,9 +162,9 @@ if not server:
     # 3. Load model.
     config = {
         "mode": "eval",
-        "model_path": "{}/{}/generated/model".format(base_url, wiki_version),
+        "model_path": "{}/{}/generated/model".format(args.base_url, wiki_version),
     }
-    model = EntityDisambiguation(base_url, wiki_version, config, search_corefs=args.search_corefs) 
+    model = EntityDisambiguation(args.base_url, wiki_version, config, search_corefs=args.search_corefs) 
 
     # 4. Entity disambiguation.
     start = time()

@@ -1,23 +1,28 @@
 
+BASE_URL="$1"
+
+DATASETS=("aida_testB")
+DOCSIZES=(50 500)
+COREF_OPTIONS=("all" "off" "lsh")
 
 
-datasets=("aida_testB")
-
-docsizes=(50 500)
+echo $DATASETS
 
 
-echo $datasets
-
-
-echo "--Running efficiency tests by data set and n_docs--"
+echo "--Running efficiency tests by data set, n_docs and coref option--"
 
 # do profiling and checking predictions in one 
-for size in ${docsizes[@]}; do
-    for ds in ${datasets[@]}; do
-        echo $ds, echo $size
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "all"
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "lsh"
-        python scripts/efficiency_test.py --profile --n_docs $size --name_dataset "$ds" --search_corefs "off"
+for size in ${DOCSIZES[@]}; do
+    for ds in ${DATASETS[@]}; do
+        for option in ${COREF_OPTIONS[@]}; do
+            echo $ds, echo $size, echo $option 
+            python scripts/efficiency_test.py \
+                --url "$BASE_URL" \
+                --profile \
+                --n_docs $size \
+                --name_dataset "$ds" \
+                --search_corefs $option 
+        done
     done 
 done 
 
